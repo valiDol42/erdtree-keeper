@@ -1,5 +1,6 @@
 using System.Reflection;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
@@ -69,6 +70,12 @@ public partial class MainWindow : Window
         if (ViewModel is { } vm) await vm.LoadAsync();
     }
 
+    private void OnHideLog(object? sender, RoutedEventArgs e)
+    {
+        var toggle = this.FindControl<ToggleButton>("LogToggle");
+        if (toggle is not null) toggle.IsChecked = false;
+    }
+
     private async void OnShowTransparency(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm) return;
@@ -87,6 +94,6 @@ public partial class MainWindow : Window
         var plus = version.IndexOf('+');
         if (plus > 0) version = version[..plus];
 
-        await Dialogs.AboutAsync(this, version, vm.SettingsPath, vm.IsPortable);
+        await Dialogs.AboutAsync(this, version, vm.SettingsPath, vm.IsPortable, vm.SettingsFileState);
     }
 }

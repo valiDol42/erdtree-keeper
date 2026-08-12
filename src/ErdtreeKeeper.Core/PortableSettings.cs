@@ -64,6 +64,26 @@ public sealed class PortableSettings
     public static string AppFolder => AppContext.BaseDirectory.TrimEnd(
         System.IO.Path.DirectorySeparatorChar);
 
+    /// <summary>
+    /// Что лежит по пути настроек прямо сейчас.
+    ///
+    /// Окно "О программе" показывает не предполагаемый путь, а результат
+    /// обращения к диску: есть файл или нет, какого размера и когда изменён.
+    /// Иначе это было бы обещание, а не проверяемый факт.
+    /// </summary>
+    public string DescribeFile()
+    {
+        try
+        {
+            var info = new FileInfo(Path);
+            return info.Exists
+                ? $"файл есть: {info.Length} байт, изменён {info.LastWriteTime:dd.MM.yyyy HH:mm:ss}"
+                : "файла ещё нет - он появится, когда вы что-нибудь измените";
+        }
+        catch (IOException ex) { return $"не удалось прочитать: {ex.Message}"; }
+        catch (UnauthorizedAccessException) { return "нет доступа к файлу"; }
+    }
+
     public static PortableSettings Load()
     {
         var portablePath = System.IO.Path.Combine(AppFolder, FileName);

@@ -8,6 +8,9 @@ namespace ErdtreeKeeper.Views;
 /// <summary>
 /// Диалоги собираются кодом, а не разметкой: их немного, они однотипные, и так
 /// они гарантированно наследуют общие стили приложения.
+///
+/// Каждое окно можно создать отдельно от показа - на этом держится проверка
+/// вида в tools/UiPreview: окно рисуется в файл, не открываясь на рабочем столе.
 /// </summary>
 public static class Dialogs
 {
@@ -18,7 +21,7 @@ public static class Dialogs
             Title = title,
             Width = width,
             SizeToContent = SizeToContent.Height,
-            MaxHeight = 760,
+            MaxHeight = 820,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
             ShowInTaskbar = false,
@@ -38,13 +41,17 @@ public static class Dialogs
     {
         Text = text,
         Classes = { "display" },
+        TextWrapping = TextWrapping.Wrap,
         Margin = new Thickness(0, 0, 0, 12),
     };
 
-    private static TextBlock Body(string text) => new()
+    // Перенос ставится и здесь, хотя он есть в теме: у диалогов ширина
+    // фиксированная, и строка без переноса просто уезжает за край окна.
+    private static SelectableTextBlock Body(string text) => new()
     {
         Text = text,
         Classes = { "body" },
+        TextWrapping = TextWrapping.Wrap,
         Foreground = Res<IBrush>("TextSecondaryBrush"),
     };
 
@@ -56,6 +63,19 @@ public static class Dialogs
         return button;
     }
 
+    private static StackPanel Buttons(params Control[] buttons)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8,
+        };
+
+        foreach (var button in buttons) panel.Children.Add(button);
+        return panel;
+    }
+
     private static T? Res<T>(string key) where T : class
     {
         var app = Application.Current;
@@ -63,6 +83,8 @@ public static class Dialogs
             ? value as T
             : null;
     }
+
+    // ─── Подтверждение и ввод ───────────────────────────────────────────
 
     /// <summary>Подтверждение действия. Кнопка согласия подписана глаголом, а не "ОК".</summary>
     public static async Task<bool> ConfirmAsync(Window owner, string title, string message, string confirmText)
@@ -77,18 +99,8 @@ public static class Dialogs
             Spacing = 20,
             Children =
             {
-                new StackPanel
-                {
-                    Spacing = 10,
-                    Children = { Heading(title), Body(message) },
-                },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8,
-                    Children = { no, yes },
-                },
+                new StackPanel { Spacing = 10, Children = { Heading(title), Body(message) } },
+                Buttons(no, yes),
             },
         };
 
@@ -114,18 +126,8 @@ public static class Dialogs
             Spacing = 20,
             Children =
             {
-                new StackPanel
-                {
-                    Spacing = 10,
-                    Children = { Heading(title), Body(message), input },
-                },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Spacing = 8,
-                    Children = { cancel, ok },
-                },
+                new StackPanel { Spacing = 10, Children = { Heading(title), Body(message), input } },
+                Buttons(cancel, ok),
             },
         };
 
@@ -143,8 +145,15 @@ public static class Dialogs
         return result;
     }
 
-    /// <summary>Показ длинного текстового отчёта моноширинным шрифтом.</summary>
-    public static async Task ReportAsync(Window owner, string title, string text)
+    // ─── Отчёт ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Длинный текстовый отчёт моноширинным шрифтом.
+    ///
+    /// Перенос здесь выключен намеренно: отчёт о целостности - таблица, и
+    /// перенос сломал бы выравнивание столбцов. Вместо этого он прокручивается.
+    /// </summary>
+    public static Window CreateReportWindow(string title, string text)
     {
         var close = Action("Закрыть", primary: true);
 
@@ -160,37 +169,40 @@ public static class Dialogs
                     MaxHeight = 460,
                     Child = new ScrollViewer
                     {
+                        HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                         Content = new SelectableTextBlock
                         {
                             Text = text,
                             Classes = { "mono" },
+                            TextWrapping = TextWrapping.NoWrap,
                             Foreground = Res<IBrush>("TextPrimaryBrush"),
                         },
                     },
                 },
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { close },
-                },
+                Buttons(close),
             },
         };
 
-        var window = Shell(title, 640, body);
+        var window = Shell(title, 660, body);
         close.Click += (_, _) => window.Close();
-
-        await window.ShowDialog(owner);
+        return window;
     }
+
+    public static Task ReportAsync(Window owner, string title, string text) =>
+        CreateReportWindow(title, text).ShowDialog(owner);
+
+    // ─── Что программа делает ───────────────────────────────────────────
 
     /// <summary>
     /// Полный перечень того, что программа делает с диском.
     ///
-    /// Живёт отдельным окном и открывается одной кнопкой из шапки: игроку,
-    /// который боится вирусов, ответ должен быть доступен сразу, а не в
-    /// документации где-то на сайте.
+    /// Открывается одной кнопкой из шапки: игроку, который боится вирусов,
+    /// ответ должен быть доступен сразу, а не в документации где-то на сайте.
+    ///
+    /// Пути подставляются настоящие, вычисленные на этом компьютере, - в них
+    /// видно имя текущего пользователя Windows, потому что ничего не зашито.
     /// </summary>
-    public static async Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder)
+    public static Window CreateTransparencyWindow(string settingsPath, string snapshotFolder)
     {
         var close = Action("Закрыть", primary: true);
 
@@ -206,8 +218,8 @@ public static class Dialogs
                     + "Файлы открываются только на чтение и в режиме, который не мешает игре."),
 
                 Section("Пишет", Res<IBrush>("AccentBrightBrush"),
-                    $"Снимки в папку {snapshotFolder}.\n"
-                    + $"Настройки в файл {settingsPath}.\n"
+                    $"Снимки в папку {snapshotFolder}\n"
+                    + $"Настройки в файл {settingsPath}\n\n"
                     + "В папку игры программа пишет ровно один раз - когда вы нажимаете "
                     + "\"Восстановить в игру\". Перед этим текущий сейв всегда уезжает в "
                     + $"подпапку \"{Core.SnapshotService.RestoreBackupFolder}\"."),
@@ -217,30 +229,27 @@ public static class Dialogs
                     + "Не меняет содержимое сохранений: копируется файл целиком, байт в байт.\n"
                     + "Не просит прав администратора.\n"
                     + "Не прописывается в автозагрузку и не остаётся в памяти после закрытия.\n"
-                    + "Не трогает файлы игры, реестр и системные настройки."),
+                    + "Не изменяет файлы игры, реестр и системные настройки."),
 
                 Section("Как проверить", Res<IBrush>("TextSecondaryBrush"),
-                    "Журнал операций внизу окна показывает каждое обращение к диску, и его "
+                    "Журнал операций показывает каждое обращение к диску, и его "
                     + "можно выгрузить в текстовый файл.\n"
-                    + "Отсутствие сети проверяется любым монитором соединений - у программы "
-                    + "нет ни одной сетевой библиотеки.\n"
+                    + "Отсутствие сети проверяется любым монитором соединений - в готовом "
+                    + "файле нет ни одной сетевой библиотеки.\n"
                     + "Исходный код открыт: собранный файл можно сверить по контрольной сумме "
                     + "в окне \"О программе\"."),
 
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { close },
-                },
+                Buttons(close),
             },
         };
 
-        var window = Shell("Что программа делает", 660, body);
+        var window = Shell("Что программа делает", 680, body);
         close.Click += (_, _) => window.Close();
-
-        await window.ShowDialog(owner);
+        return window;
     }
+
+    public static Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder) =>
+        CreateTransparencyWindow(settingsPath, snapshotFolder).ShowDialog(owner);
 
     private static Control Section(string title, IBrush? accent, string text) => new StackPanel
     {
@@ -257,23 +266,28 @@ public static class Dialogs
             {
                 Text = text,
                 Classes = { "secondary" },
+                TextWrapping = TextWrapping.Wrap,
                 Foreground = Res<IBrush>("TextSecondaryBrush"),
             },
         },
     };
 
+    // ─── О программе ────────────────────────────────────────────────────
+
     /// <summary>О программе: версия, пути и контрольная сумма самого файла.</summary>
-    public static async Task AboutAsync(Window owner, string version, string settingsPath, bool portable)
+    public static Window CreateAboutWindow(string version, string settingsPath, bool portable, string fileState)
     {
         var close = Action("Закрыть", primary: true);
+
         var hashLine = new SelectableTextBlock
         {
-            Text = "нажмите, чтобы посчитать",
+            Text = "нажмите кнопку, чтобы посчитать",
             Classes = { "mono" },
+            TextWrapping = TextWrapping.Wrap,
             Foreground = Res<IBrush>("TextSecondaryBrush"),
         };
-        var hashButton = new Button { Content = "Посчитать SHA-256", Classes = { "chip" } };
 
+        var hashButton = new Button { Content = "Посчитать SHA-256", Classes = { "chip" } };
         hashButton.Click += async (_, _) =>
         {
             hashLine.Text = "считаю...";
@@ -289,9 +303,12 @@ public static class Dialogs
                 Heading("Erdtree Keeper"),
                 Body($"Версия {version}. Хранитель сохранений Elden Ring."),
 
+                // Пути не зашиты: папка программы берётся у самого процесса,
+                // а состояние файла настроек читается с диска при открытии окна.
                 Section("Где что лежит", Res<IBrush>("TextSecondaryBrush"),
-                    $"Программа: {Core.PortableSettings.AppFolder}\n"
+                    $"Программа: {Core.PortableSettings.AppFolder}\n\n"
                     + $"Настройки: {settingsPath}\n"
+                    + $"Сейчас на диске: {fileState}\n\n"
                     + (portable
                         ? "Настройки лежат рядом с программой - её можно носить на флешке."
                         : "Папка программы недоступна для записи, поэтому настройки ушли в AppData.")),
@@ -301,36 +318,30 @@ public static class Dialogs
                     Spacing = 8,
                     Children =
                     {
-                        new TextBlock
-                        {
-                            Text = "КОНТРОЛЬНАЯ СУММА ЭТОГО ФАЙЛА",
-                            Classes = { "section" },
-                        },
+                        new TextBlock { Text = "КОНТРОЛЬНАЯ СУММА ЭТОГО ФАЙЛА", Classes = { "section" } },
                         new TextBlock
                         {
                             Text = "Сверьте её с суммой, опубликованной на странице релиза: "
                                    + "совпадение означает, что файл не подменяли.",
                             Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
                         },
                         hashButton,
                         hashLine,
                     },
                 },
 
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { close },
-                },
+                Buttons(close),
             },
         };
 
-        var window = Shell("О программе", 620, body);
+        var window = Shell("О программе", 640, body);
         close.Click += (_, _) => window.Close();
-
-        await window.ShowDialog(owner);
+        return window;
     }
+
+    public static Task AboutAsync(Window owner, string version, string settingsPath, bool portable, string fileState) =>
+        CreateAboutWindow(version, settingsPath, portable, fileState).ShowDialog(owner);
 
     private static string SelfHash()
     {

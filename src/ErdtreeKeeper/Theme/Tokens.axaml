@@ -45,53 +45,53 @@
 
     <!-- ─── Типографика ─────────────────────────────────────────────────── -->
 
-    <Style Selector="TextBlock">
+    <Style Selector=":is(TextBlock)">
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
-    <Style Selector="TextBlock.display">
+    <Style Selector=":is(TextBlock).display">
         <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="26" />
     </Style>
 
-    <Style Selector="TextBlock.title">
+    <Style Selector=":is(TextBlock).title">
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <!-- Заголовок раздела: разрядка делает его тише основного текста -->
-    <Style Selector="TextBlock.section">
+    <Style Selector=":is(TextBlock).section">
         <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LetterSpacing" Value="1.2" />
         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     </Style>
 
-    <Style Selector="TextBlock.body">
+    <Style Selector=":is(TextBlock).body">
         <Setter Property="FontSize" Value="13" />
         <Setter Property="LineHeight" Value="19" />
     </Style>
 
-    <Style Selector="TextBlock.secondary">
+    <Style Selector=":is(TextBlock).secondary">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="LineHeight" Value="18" />
     </Style>
 
-    <Style Selector="TextBlock.muted">
+    <Style Selector=":is(TextBlock).muted">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     </Style>
 
-    <Style Selector="TextBlock.mono">
+    <Style Selector=":is(TextBlock).mono">
         <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace" />
         <Setter Property="FontSize" Value="12" />
     </Style>
 
-    <Style Selector="TextBlock.accent">
+    <Style Selector=":is(TextBlock).accent">
         <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
     </Style>
 

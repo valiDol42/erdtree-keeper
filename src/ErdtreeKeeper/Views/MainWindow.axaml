@@ -166,8 +166,8 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding CreateSnapshotCommand}" />
 
-                                <CheckBox Content="Снимать автоматически"
-                                          ToolTip.Tip="Снимок делается не по таймеру, а когда игра действительно записала сейв и файл перестал меняться"
+                                <CheckBox Content="Автосохранение"
+                                          ToolTip.Tip="Снимок делается не по таймеру, а когда игра действительно записала сейв и файл перестал меняться. Смотреть и восстанавливать их можно, переключив список справа на «Автосохранения»"
                                           IsChecked="{Binding AutoSnapshotEnabled}" />
                             </StackPanel>
                         </Border>
@@ -175,18 +175,26 @@
                 </ScrollViewer>
 
                 <!-- ── Правая колонка ── -->
-                <Border Grid.Column="2" Classes="card">
+                <!-- Журнал живёт здесь, а не внизу окна: снизу он отбирал высоту
+                     у левой колонки, и кнопка "Сделать снимок" уходила под срез. -->
+                <Grid Grid.Column="2" RowDefinitions="*,Auto">
+
+                <Border Grid.Row="0" Classes="card">
                     <Grid RowDefinitions="Auto,Auto,*,Auto" >
 
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-                            <TextBlock Grid.Column="0" Text="СНИМКИ" Classes="section" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <!-- Переключатель папки стоит над списком, а не отдельной
+                             вкладкой: кнопки под списком работают с тем, что видно. -->
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+                            <ComboBox Grid.Column="0" Width="190"
+                                      ItemsSource="{Binding SnapshotSources}"
+                                      SelectedIndex="{Binding SnapshotSourceIndex}" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
                                 <Button Classes="chip" Content="Обзор..." Command="{Binding PickFolderCommand}" />
                                 <Button Classes="chip" Content="Открыть папку" Command="{Binding OpenSnapshotFolderCommand}" />
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Grid.Row="1" Text="{Binding SnapshotFolder}" Classes="muted"
+                        <TextBlock Grid.Row="1" Text="{Binding ListFolder}" Classes="muted"
                                    Margin="0,0,0,12" TextTrimming="CharacterEllipsis" />
 
                         <Border Grid.Row="2" Classes="inset" Padding="8">
@@ -218,7 +226,7 @@
                                                HorizontalAlignment="Center"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBlock Classes="muted" TextAlignment="Center"
-                                               Text="Сядьте у благодати, чтобы игра записала сейв, задайте имя слева и нажмите «Сделать снимок»." />
+                                               Text="{Binding EmptyStateHint}" />
                                 </StackPanel>
                             </Panel>
                         </Border>
@@ -232,36 +240,49 @@
                         </Grid>
                     </Grid>
                 </Border>
-            </Grid>
-
-            <!-- ─── Низ: статус и журнал ──────────────────────────────── -->
-            <StackPanel Grid.Row="2" Spacing="0" Margin="0,16,0,0">
-                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
-                    <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="13"
-                               Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                        <Button Classes="ghost" Content="Выгрузить журнал" Command="{Binding ExportLogCommand}" />
-                        <ToggleButton Name="LogToggle" Classes="ghost" Content="Журнал операций" />
-                    </StackPanel>
-                </Grid>
 
                 <!-- Журнал: полный список того, что программа трогала на диске -->
-                <Border Classes="inset" Height="150" Margin="0,0,0,16"
+                <Border Grid.Row="1" Classes="card" Margin="0,16,0,0" Padding="15,12"
                         IsVisible="{Binding #LogToggle.IsChecked}">
-                    <ScrollViewer>
-                        <ItemsControl ItemsSource="{Binding Log.Entries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="core:ActivityEntry">
-                                    <TextBlock Text="{Binding Line}" Classes="mono"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               Margin="0,0,0,3" TextWrapping="NoWrap" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                    <Grid RowDefinitions="Auto,Auto">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10">
+                            <TextBlock Grid.Column="0" Text="ЖУРНАЛ ОПЕРАЦИЙ" Classes="section"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="chip" Content="Выгрузить в файл"
+                                    Command="{Binding ExportLogCommand}" />
+                            <!-- Закрыть можно и здесь, и переключателем внизу окна:
+                                 искать способ убрать журнал не должно приходиться. -->
+                            <Button Grid.Column="2" Classes="ghost" Content="✕" Margin="6,0,0,0"
+                                    ToolTip.Tip="Скрыть журнал"
+                                    Click="OnHideLog" />
+                        </Grid>
+
+                        <Border Grid.Row="1" Classes="inset" Height="170" Padding="10,8">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Log.Entries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="core:ActivityEntry">
+                                            <TextBlock Text="{Binding Line}" Classes="mono"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="0,0,0,3" TextWrapping="NoWrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </Border>
-            </StackPanel>
+                </Grid>
+            </Grid>
+
+            <!-- ─── Низ: статус ───────────────────────────────────────── -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,14,0,16">
+                <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="13"
+                           Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <ToggleButton Grid.Column="1" Name="LogToggle" Classes="ghost"
+                              Content="Журнал операций" />
+            </Grid>
         </Grid>
 
         <!-- ─── Первый запуск ─────────────────────────────────────────── -->

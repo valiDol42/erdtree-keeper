@@ -5,7 +5,13 @@ namespace ErdtreeKeeper.Core;
 /// <summary>Сохранённый снимок в папке пользователя.</summary>
 public sealed record Snapshot(string Name, string Path, long Length, DateTime Created)
 {
-    public string SizeText => $"{Length / 1024.0 / 1024.0:0.0} МБ";
+    /// <summary>
+    /// Обычный сейв весит около 29 МБ, но в папке может оказаться и обрывок -
+    /// его размер должен читаться, а не превращаться в "0,0 МБ".
+    /// </summary>
+    public string SizeText => Length >= 1024 * 1024
+        ? $"{Length / 1024.0 / 1024.0:0.0} МБ"
+        : $"{Length / 1024.0:0} КБ";
 }
 
 /// <summary>Чем закончилась операция с файлом.</summary>
@@ -34,8 +40,11 @@ public sealed class SnapshotService(ActivityLog log)
     /// <summary>Подпапка с копиями, которые программа делает перед восстановлением.</summary>
     public const string RestoreBackupFolder = "Перед восстановлением";
 
-    /// <summary>Подпапка для автоматических снимков.</summary>
-    public const string AutoFolder = "Автоснимки";
+    /// <summary>
+    /// Подпапка для автоматических снимков. Называется так же, как пункт в
+    /// списке: иначе игрок ищет на диске папку, которой там нет.
+    /// </summary>
+    public const string AutoFolder = "Автосохранения";
 
     private readonly ActivityLog _log = log;
 

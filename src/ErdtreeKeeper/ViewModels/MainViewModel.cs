@@ -50,7 +50,7 @@ public sealed class MainViewModel : ViewModelBase
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => SelectedSaveFile is not null);
         PickFolderCommand = new AsyncRelayCommand(PickSnapshotFolderAsync);
         RenameAccountCommand = new AsyncRelayCommand(RenameAccountAsync, () => SelectedAccount is not null);
-        OpenSnapshotFolderCommand = new RelayCommand(() => OpenInExplorer(SnapshotFolder));
+        OpenSnapshotFolderCommand = new RelayCommand(() => OpenInExplorer(ListFolder));
         OpenGameFolderCommand = new RelayCommand(() => OpenInExplorer(SelectedAccount?.Account.Path));
         ExportLogCommand = new AsyncRelayCommand(ExportLogAsync);
         DismissOnboardingCommand = new RelayCommand(DismissOnboarding);
@@ -144,10 +144,44 @@ public sealed class MainViewModel : ViewModelBase
             if (!Set(ref _snapshotFolder, value)) return;
             _settings.Values.SnapshotFolder = value;
             _settings.Save();
+            OnPropertyChanged(nameof(ListFolder));
             RefreshSnapshots();
             UpdateCreateAvailability();
         }
     }
+
+    /// <summary>Что показывает список: отобранные вручную снимки или автосохранения.</summary>
+    public string[] SnapshotSources { get; } = ["Снимки", "Автосохранения"];
+
+    private int _snapshotSourceIndex;
+    public int SnapshotSourceIndex
+    {
+        get => _snapshotSourceIndex;
+        set
+        {
+            if (!Set(ref _snapshotSourceIndex, value)) return;
+            OnPropertyChanged(nameof(ListFolder));
+            OnPropertyChanged(nameof(IsAutoFolder));
+            OnPropertyChanged(nameof(EmptyStateHint));
+            RefreshSnapshots();
+        }
+    }
+
+    public bool IsAutoFolder => SnapshotSourceIndex == 1;
+
+    /// <summary>
+    /// Папка, с которой работает список.
+    ///
+    /// Все действия под списком - переименовать, удалить, восстановить -
+    /// работают с тем, что видно, а не с какой-то другой папкой.
+    /// </summary>
+    public string ListFolder => IsAutoFolder
+        ? Path.Combine(SnapshotFolder, SnapshotService.AutoFolder)
+        : SnapshotFolder;
+
+    public string EmptyStateHint => IsAutoFolder
+        ? "Включите автосохранение слева. Снимок появится здесь после того, как игра запишет сейв."
+        : "Сядьте у благодати, чтобы игра записала сейв, задайте имя слева и нажмите «Сделать снимок».";
 
     private string _snapshotName = "";
     public string SnapshotName
@@ -272,6 +306,9 @@ public sealed class MainViewModel : ViewModelBase
     public string SettingsPath => _settings.Path;
     public bool IsPortable => _settings.IsPortable;
 
+    /// <summary>Состояние файла настроек на диске - читается в момент запроса.</summary>
+    public string SettingsFileState => _settings.DescribeFile();
+
     /// <summary>Steam синхронизирует папку сохранений с облаком - об этом надо предупредить.</summary>
     public string? SteamCloudWarning => SelectedAccount?.Account.HasSteamCloudMarker == true
         ? "У этого аккаунта включена синхронизация Steam Cloud. Восстанавливайте сейв только при полностью закрытой игре, иначе Steam может вернуть облачную версию."
@@ -375,7 +412,7 @@ public sealed class MainViewModel : ViewModelBase
         var wanted = SelectedSnapshot?.Name;
 
         Snapshots.Clear();
-        foreach (var snapshot in _snapshotService.List(SnapshotFolder))
+        foreach (var snapshot in _snapshotService.List(ListFolder))
         {
             Snapshots.Add(snapshot);
         }

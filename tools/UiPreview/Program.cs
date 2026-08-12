@@ -6,12 +6,12 @@ using ErdtreeKeeper;
 using ErdtreeKeeper.ViewModels;
 using ErdtreeKeeper.Views;
 
-// Рисует окно приложения в файл. Запуск:
-//   dotnet run --project tools/UiPreview -- <папка> [ширина] [высота]
+// Рисует окна приложения в файлы, не открывая их на рабочем столе.
+// Запуск: dotnet run --project tools/UiPreview -- <папка> [ширина] [высота]
 
 var outputDir = args.Length > 0 ? args[0] : "ui-preview";
 var width = args.Length > 1 && int.TryParse(args[1], out var w) ? w : 1180;
-var height = args.Length > 2 && int.TryParse(args[2], out var h) ? h : 800;
+var height = args.Length > 2 && int.TryParse(args[2], out var h) ? h : 840;
 
 Directory.CreateDirectory(outputDir);
 
@@ -19,35 +19,84 @@ AppBuilder.Configure<App>()
     .UseSkia()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
     .WithInterFont()
-    .AfterSetup(_ => { })
-    .Start((application, _) =>
-    {
-        Shoot(application, outputDir, width, height);
-    }, args);
+    .Start((_, _) => Shoot(outputDir, width, height), args);
 
-static void Shoot(Application application, string outputDir, int width, int height)
+static void Shoot(string outputDir, int width, int height)
 {
     // Первый запуск: с приветственным экраном.
-    Capture(new MainViewModel(), "01-первый-запуск.png", outputDir, width, height);
+    var first = new MainWindow { DataContext = new MainViewModel(), Width = width, Height = height };
+    Capture(first, "01-первый-запуск.png", outputDir);
 
-    // Обычный вид: приветствие уже закрыто.
-    var main = new MainViewModel();
-    main.DismissOnboardingCommand.Execute(null);
-    main.RefreshAccounts();
-    Capture(main, "02-главный-экран.png", outputDir, width, height);
+    // Обычный вид.
+    var model = new MainViewModel();
+    model.DismissOnboardingCommand.Execute(null);
+    model.RefreshAccounts();
+    var main = new MainWindow { DataContext = model, Width = width, Height = height };
+    Capture(main, "02-главный-экран.png", outputDir);
+
+    // Диалоги. Пути настоящие - в них видно, что ничего не зашито жёстко.
+    Capture(
+        Dialogs.CreateTransparencyWindow(model.SettingsPath, model.SnapshotFolder),
+        "04-что-программа-делает.png", outputDir);
+
+    // Список переключён на автосохранения: восстанавливать можно и оттуда.
+    var auto = new MainViewModel();
+    auto.DismissOnboardingCommand.Execute(null);
+    auto.RefreshAccounts();
+    auto.SnapshotSourceIndex = 1;
+    Console.WriteLine($"   папка автосохранений: {auto.ListFolder}");
+    Console.WriteLine($"   найдено файлов: {auto.Snapshots.Count}");
+    var autoWindow = new MainWindow { DataContext = auto, Width = width, Height = height };
+    autoWindow.Opened += (_, _) => auto.SelectedSnapshot = auto.Snapshots.FirstOrDefault();
+    Capture(autoWindow, "07-автосохранения.png", outputDir);
+
+    // Журнал открыт: левая колонка не должна от этого сжиматься.
+    var withLog = new MainViewModel();
+    withLog.DismissOnboardingCommand.Execute(null);
+    withLog.RefreshAccounts();
+    var logWindow = new MainWindow { DataContext = withLog, Width = width, Height = height };
+    logWindow.Opened += (_, _) =>
+    {
+        var toggle = logWindow.FindControl<Avalonia.Controls.Primitives.ToggleButton>("LogToggle");
+        if (toggle is not null) toggle.IsChecked = true;
+    };
+    Capture(logWindow, "03-журнал-открыт.png", outputDir);
+
+    Capture(
+        Dialogs.CreateAboutWindow("1.0.0", model.SettingsPath, model.IsPortable, model.SettingsFileState),
+        "05-о-программе.png", outputDir);
+
+    Capture(
+        Dialogs.CreateReportWindow("Проверка целостности", SampleReport()),
+        "05-проверка-целостности.png", outputDir);
+
+    Capture(
+        Dialogs.CreateReportWindow("Пример длинной строки", string.Join("\n", Enumerable.Repeat(
+            "Очень длинная строка, которая заведомо шире окна и должна прокручиваться, а не обрезаться молча.", 3))),
+        "06-длинный-текст.png", outputDir);
 
     Console.WriteLine($"Готово: {Path.GetFullPath(outputDir)}");
 }
 
-static void Capture(MainViewModel viewModel, string name, string outputDir, int width, int height)
-{
-    var window = new MainWindow
-    {
-        DataContext = viewModel,
-        Width = width,
-        Height = height,
-    };
+static string SampleReport() => string.Join(Environment.NewLine,
+[
+    "Файл: ER0000.sl2",
+    "",
+    "Размер: 28 967 888 байт - как у обычного сейва.",
+    "",
+    "Игра проверяет каждый блок по контрольной сумме MD5 и отказывается",
+    "загружать блок, если сумма не сошлась. Ниже - результат по каждому.",
+    "",
+    "  Слот 1      в порядке",
+    "  Слот 2      в порядке",
+    "  Слот 3      ПОВРЕЖДЁН  (записано 5b8259aa, посчитано 8354dcaa)",
+    "  Профиль     в порядке",
+    "",
+    "Итог: повреждённых блоков 1.",
+]);
 
+static void Capture(Window window, string name, string outputDir)
+{
     window.Show();
 
     // Даём разметке и привязкам отработать перед снимком.
@@ -70,7 +119,7 @@ static void Capture(MainViewModel viewModel, string name, string outputDir, int 
 #pragma warning disable CS0618 // служебный инструмент, достаточно простого Save
     frame.Save(path);
 #pragma warning restore CS0618
-    Console.WriteLine($"{name}: {new FileInfo(path).Length / 1024} КБ");
+    Console.WriteLine($"{name}: {frame.PixelSize.Width}x{frame.PixelSize.Height}");
 
     window.Close();
 }
