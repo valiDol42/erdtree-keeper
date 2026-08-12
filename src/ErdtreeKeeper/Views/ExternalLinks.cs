@@ -17,11 +17,16 @@ public static class ExternalLinks
 
     public const string SiteLabel = "eldenring.krut.top";
 
+    /// <summary>Исходный код. На нём держится всё обещание открытости.</summary>
+    public const string Repository = "https://github.com/valiDol42/erdtree-keeper";
+
+    public const string RepositoryLabel = "github.com/valiDol42/erdtree-keeper";
+
     public static void Open(string url)
     {
         // Открываем только то, что задано в коде. Ничего, пришедшего из файла
         // настроек или из сейва, сюда попасть не может.
-        if (url != Site) return;
+        if (url != Site && url != Repository) return;
 
         try
         {

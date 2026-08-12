@@ -1,0 +1,41 @@
+<Project>
+
+  <!--
+    Версия задаётся здесь и только здесь - иначе она разъезжается между
+    сборкой, окном "О программе" и страницей релиза.
+
+    Правила простые (semver):
+      MAJOR - сломали привычный порядок работы или формат настроек;
+      MINOR - добавили возможность;
+      PATCH - починили, ничего не добавив.
+  -->
+  <PropertyGroup>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <Company>Erdtree Compass</Company>
+    <Authors>Krut42</Authors>
+    <Copyright>Copyright (c) 2026 Krut42</Copyright>
+  </PropertyGroup>
+
+  <!--
+    К версии дописывается короткий хеш коммита, чтобы две сборки одной версии
+    можно было отличить. Без этого "1.0.0" стоит и на вчерашнем файле, и на
+    сегодняшнем, и понять, обновился ли ты, нельзя.
+
+    Если git недоступен - просто пропускаем, сборка от этого не падает.
+  -->
+  <Target Name="StampGitCommit" BeforeTargets="GetAssemblyVersion" Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse --short=7 HEAD"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="low"
+          ContinueOnError="true"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="GitExitCode" />
+    </Exec>
+
+    <PropertyGroup Condition="'$(GitExitCode)' == '0' AND '$(GitCommit)' != ''">
+      <SourceRevisionId>$(GitCommit.Trim())</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
+
+</Project>

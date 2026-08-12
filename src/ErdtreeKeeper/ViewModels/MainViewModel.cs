@@ -420,6 +420,9 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Подпись внизу окна: кто написал и какая это сборка.</summary>
+    public string FooterText => $"{AppInfo.Name} {AppInfo.FullVersion}  ·  автор {AppInfo.Author}";
+
     public string SettingsPath => _settings.Path;
     public bool IsPortable => _settings.IsPortable;
 

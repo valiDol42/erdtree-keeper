@@ -72,7 +72,7 @@ static void Shoot(string outputDir, int width, int height)
     Capture(logWindow, "03-журнал-открыт.png", outputDir);
 
     Capture(
-        Dialogs.CreateAboutWindow("1.0.0", model.SettingsPath, model.IsPortable, model.SettingsFileState),
+        Dialogs.CreateAboutWindow(model.SettingsPath, model.IsPortable, model.SettingsFileState),
         "05-о-программе.png", outputDir);
 
     Capture(

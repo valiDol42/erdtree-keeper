@@ -56,18 +56,18 @@ public static class Dialogs
         Foreground = Res<IBrush>("TextSecondaryBrush"),
     };
 
-    /// <summary>Ссылка на сайт проекта. Открывает браузер, ничего не качает сама.</summary>
-    private static Button SiteLink()
+    /// <summary>Ссылка наружу. Открывает браузер, ничего не качает сама.</summary>
+    private static Button Link(string label, string url)
     {
         var button = new Button
         {
-            Content = ExternalLinks.SiteLabel,
+            Content = label,
             Classes = { "link" },
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 2),
         };
 
-        button.Click += (_, _) => ExternalLinks.Open(ExternalLinks.Site);
+        button.Click += (_, _) => ExternalLinks.Open(url);
         return button;
     }
 
@@ -348,7 +348,7 @@ public static class Dialogs
     // ─── О программе ────────────────────────────────────────────────────
 
     /// <summary>О программе: версия, пути и контрольная сумма самого файла.</summary>
-    public static Window CreateAboutWindow(string version, string settingsPath, bool portable, string fileState)
+    public static Window CreateAboutWindow(string settingsPath, bool portable, string fileState)
     {
         var close = Action("Закрыть", primary: true);
 
@@ -373,20 +373,39 @@ public static class Dialogs
             Spacing = 18,
             Children =
             {
-                Heading("Erdtree Keeper"),
-                Body($"Версия {version}. Хранитель файлов сохранения Elden Ring."),
+                Heading(AppInfo.Name),
+                Body($"Версия {AppInfo.FullVersion}. Хранитель файлов сохранения Elden Ring.\n"
+                     + $"Автор: {AppInfo.Author}. Лицензия MIT."),
 
                 new StackPanel
                 {
                     Spacing = 4,
                     Children =
                     {
-                        new TextBlock { Text = "ПРОЕКТ", Classes = { "section" } },
-                        SiteLink(),
+                        new TextBlock { Text = "САЙТ ПРОЕКТА", Classes = { "section" } },
+                        Link(ExternalLinks.SiteLabel, ExternalLinks.Site),
                         new TextBlock
                         {
                             Text = "Карта и трекер прогресса Elden Ring. Оттуда же взят справочник "
                                    + "мест благодати и арен боссов, по которому программа называет снимки.",
+                            Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                    },
+                },
+
+                new StackPanel
+                {
+                    Spacing = 4,
+                    Children =
+                    {
+                        new TextBlock { Text = "ИСХОДНЫЙ КОД", Classes = { "section" } },
+                        Link(ExternalLinks.RepositoryLabel, ExternalLinks.Repository),
+                        new TextBlock
+                        {
+                            Text = "Всё, что делает программа, можно прочитать целиком. Там же "
+                                   + "лежат контрольные суммы релизов и подтверждение того, что "
+                                   + "выложенный файл собран именно из этого кода.",
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -430,8 +449,8 @@ public static class Dialogs
         return window;
     }
 
-    public static Task AboutAsync(Window owner, string version, string settingsPath, bool portable, string fileState) =>
-        CreateAboutWindow(version, settingsPath, portable, fileState).ShowDialog(owner);
+    public static Task AboutAsync(Window owner, string settingsPath, bool portable, string fileState) =>
+        CreateAboutWindow(settingsPath, portable, fileState).ShowDialog(owner);
 
     private static string SelfHash()
     {

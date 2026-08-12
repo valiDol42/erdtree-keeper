@@ -1,4 +1,3 @@
-using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
@@ -88,15 +87,6 @@ public partial class MainWindow : Window
     private async void OnShowAbout(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm) return;
-
-        var version = Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? "1.0.0";
-
-        // У сборки версия приходит с хешем коммита после "+": в окне он лишний.
-        var plus = version.IndexOf('+');
-        if (plus > 0) version = version[..plus];
-
-        await Dialogs.AboutAsync(this, version, vm.SettingsPath, vm.IsPortable, vm.SettingsFileState);
+        await Dialogs.AboutAsync(this, vm.SettingsPath, vm.IsPortable, vm.SettingsFileState);
     }
 }

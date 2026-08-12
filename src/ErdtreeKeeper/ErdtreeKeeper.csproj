@@ -15,9 +15,7 @@
     <RootNamespace>ErdtreeKeeper</RootNamespace>
     <Product>Erdtree Keeper</Product>
     <AssemblyTitle>Erdtree Keeper - хранитель файлов сохранения Elden Ring</AssemblyTitle>
-    <Company>Erdtree Compass</Company>
-    <Version>1.0.0</Version>
-    <InformationalVersion>1.0.0</InformationalVersion>
+    <!-- Версия задаётся в Directory.Build.props, в одном месте на весь проект. -->
 
     <!-- Никакой телеметрии и никаких обращений в сеть. -->
     <InvariantGlobalization>true</InvariantGlobalization>
