@@ -1,0 +1,15 @@
+# В репозитории всегда LF, в рабочей копии - как принято в системе.
+# Без этого сборка на Windows и в CI видит разные файлы, а git ругается на
+# каждый из них при добавлении.
+* text=auto eol=lf
+
+# Windows-скрипты обязаны быть с CRLF, иначе cmd.exe их неправильно читает.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Двоичное - не трогать.
+*.ico binary
+*.png binary
+*.sl2 binary
+*.co2 binary
