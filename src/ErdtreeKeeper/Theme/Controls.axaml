@@ -107,6 +107,62 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
     </Style>
 
+    <!--
+        Баннер трекера. Кликается целиком, поэтому это кнопка, а не рамка:
+        так работают и клавиатура, и фокус, и подсветка при наведении.
+        Внутри вложенных кнопок быть не должно - клик достался бы обеим.
+    -->
+    <Style Selector="Button.banner">
+        <Setter Property="Padding" Value="15,10" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusLarge}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#221C0F" Offset="0" />
+                <GradientStop Color="#171410" Offset="0.6" />
+                <GradientStop Color="#15130F" Offset="1" />
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.banner /template/ ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.banner:pointerover /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#2C2413" Offset="0" />
+                <GradientStop Color="#1D1913" Offset="0.6" />
+                <GradientStop Color="#1A1711" Offset="1" />
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.banner:pressed /template/ ContentPresenter">
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#1C1710" Offset="0" />
+                <GradientStop Color="#15120E" Offset="1" />
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <!-- Адрес назначения справа: при наведении становится ярче вместе с рамкой -->
+    <Style Selector="Button.banner:pointerover TextBlock.destination">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
     <!-- Ссылка наружу: открывается в браузере, поэтому и выглядит как ссылка -->
     <Style Selector="Button.link">
         <Setter Property="Background" Value="Transparent" />

@@ -45,16 +45,9 @@
             <!-- ─── Трекер ────────────────────────────────────────────── -->
             <!-- Числа берутся из того же справочника, которым программа
                  называет снимки: обещание подкреплено содержимым файла. -->
-            <Border Grid.Row="1" Margin="0,0,0,14" Padding="15,10"
-                    CornerRadius="{DynamicResource RadiusLarge}"
-                    BorderBrush="{DynamicResource AccentDimBrush}" BorderThickness="1">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                        <GradientStop Color="#221C0F" Offset="0" />
-                        <GradientStop Color="#171410" Offset="0.6" />
-                        <GradientStop Color="#15130F" Offset="1" />
-                    </LinearGradientBrush>
-                </Border.Background>
+            <Button Grid.Row="1" Classes="banner" Margin="0,0,0,14"
+                    ToolTip.Tip="Открыть eldenring.krut.top в браузере"
+                    Click="OnOpenSite">
 
                 <Grid ColumnDefinitions="Auto,*,Auto" >
                     <!-- Стилизованная карта с отмеченной точкой -->
@@ -82,12 +75,14 @@
                         <TextBlock Text="{Binding TrackerPitch}" Classes="muted" />
                     </StackPanel>
 
-                    <Button Grid.Column="2" Classes="primary" Content="Открыть карту"
-                            VerticalAlignment="Center"
-                            ToolTip.Tip="eldenring.krut.top - откроется в браузере"
-                            Click="OnOpenSite" />
+                    <!-- Куда ведёт клик - видно до клика. Прятать назначение
+                         ссылки в приложении про доверие было бы странно. -->
+                    <TextBlock Grid.Column="2" Classes="secondary destination"
+                               Foreground="{DynamicResource AccentBrush}"
+                               VerticalAlignment="Center" Margin="14,0,2,0"
+                               Text="eldenring.krut.top  ↗" />
                 </Grid>
-            </Border>
+            </Button>
 
             <!-- ─── Рабочая область ───────────────────────────────────── -->
             <Grid Grid.Row="2" ColumnDefinitions="420,20,*">
