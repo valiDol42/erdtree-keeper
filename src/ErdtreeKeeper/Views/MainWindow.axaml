@@ -28,23 +28,13 @@
 
                     <StackPanel Spacing="1" VerticalAlignment="Center">
                         <TextBlock Text="Erdtree Keeper" Classes="title" />
-                        <TextBlock Text="Хранитель сохранений Elden Ring" Classes="muted" />
+                        <TextBlock Text="Хранитель файлов сохранения Elden Ring" Classes="muted" />
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Знак того, что программа не ходит в сеть. Главный довод для
-                     недоверчивого игрока, поэтому он на виду, а не в "О программе". -->
-                <Border Grid.Column="1" HorizontalAlignment="Left" Margin="20,0,0,0"
-                        VerticalAlignment="Center"
-                        Background="{DynamicResource FreshWashBrush}"
-                        BorderBrush="{DynamicResource FreshBrush}" BorderThickness="1"
-                        CornerRadius="{DynamicResource RadiusSmall}" Padding="10,5">
-                    <StackPanel Orientation="Horizontal" Spacing="7">
-                        <Ellipse Width="7" Height="7" Fill="{DynamicResource FreshBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="Не выходит в интернет" FontSize="12"
-                                   Foreground="{DynamicResource FreshBrush}" />
-                    </StackPanel>
-                </Border>
+                <!-- Отметка "не выходит в интернет" живёт в окне "Что программа
+                     делает": там она стоит рядом с остальными обещаниями и
+                     объяснением, как их проверить, а не висит без контекста. -->
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <!-- Сайт проекта: заодно отвечает на вопрос "кто это написал" -->

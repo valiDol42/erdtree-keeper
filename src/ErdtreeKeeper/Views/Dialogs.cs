@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -228,6 +229,10 @@ public static class Dialogs
             {
                 Heading("Что программа делает"),
 
+                // Главное обещание вынесено наверх и подсвечено: с него
+                // начинаются все вопросы недоверчивого игрока.
+                NoNetworkBadge(),
+
                 Section("Читает", Res<IBrush>("TextSecondaryBrush"),
                     $"Папку сохранений {Core.GameSaves.DefaultRoot} и файлы .sl2 и .co2 внутри неё. "
                     + "Файлы открываются только на чтение и в режиме, который не мешает игре."),
@@ -268,6 +273,56 @@ public static class Dialogs
 
     public static Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder) =>
         CreateTransparencyWindow(settingsPath, snapshotFolder).ShowDialog(owner);
+
+    /// <summary>Отметка о том, что программа не открывает соединений.</summary>
+    private static Control NoNetworkBadge() => new Border
+    {
+        Background = Res<IBrush>("FreshWashBrush"),
+        BorderBrush = Res<IBrush>("FreshBrush"),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(8),
+        Padding = new Thickness(14, 11),
+        Child = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            Children =
+            {
+                new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = Res<IBrush>("FreshBrush"),
+                    // По верхней строке, а не по центру блока: иначе точка
+                    // оказывается напротив пояснения, а не заголовка.
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(0, 6, 0, 0),
+                },
+                new StackPanel
+                {
+                    Spacing = 3,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Не выходит в интернет",
+                            FontSize = 13,
+                            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                            Foreground = Res<IBrush>("FreshBrush"),
+                        },
+                        new TextBlock
+                        {
+                            Text = "В готовом файле нет ни одной сетевой библиотеки - "
+                                   + "открыть соединение программа технически не может.",
+                            Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
+                            MaxWidth = 540,
+                        },
+                    },
+                },
+            },
+        },
+    };
 
     private static Control Section(string title, IBrush? accent, string text) => new StackPanel
     {
@@ -319,7 +374,7 @@ public static class Dialogs
             Children =
             {
                 Heading("Erdtree Keeper"),
-                Body($"Версия {version}. Хранитель сохранений Elden Ring."),
+                Body($"Версия {version}. Хранитель файлов сохранения Elden Ring."),
 
                 new StackPanel
                 {

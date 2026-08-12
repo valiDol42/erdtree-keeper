@@ -14,7 +14,7 @@
     <AssemblyName>ErdtreeKeeper</AssemblyName>
     <RootNamespace>ErdtreeKeeper</RootNamespace>
     <Product>Erdtree Keeper</Product>
-    <AssemblyTitle>Erdtree Keeper - хранитель сохранений Elden Ring</AssemblyTitle>
+    <AssemblyTitle>Erdtree Keeper - хранитель файлов сохранения Elden Ring</AssemblyTitle>
     <Company>Erdtree Compass</Company>
     <Version>1.0.0</Version>
     <InformationalVersion>1.0.0</InformationalVersion>
