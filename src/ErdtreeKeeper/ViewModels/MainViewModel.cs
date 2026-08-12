@@ -420,8 +420,41 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Подпись внизу окна: кто написал и какая это сборка.</summary>
-    public string FooterText => $"{AppInfo.Name} {AppInfo.FullVersion}  ·  автор {AppInfo.Author}";
+    /// <summary>Подпись внизу окна: что это и какая сборка.</summary>
+    public string FooterText => $"{AppInfo.Name} {AppInfo.FullVersion}";
+
+    /// <summary>
+    /// Чем полезен трекер - числами из того же справочника, которым программа
+    /// называет снимки. Не рекламное обещание, а то, что лежит внутри файла.
+    /// </summary>
+    public string TrackerPitch
+    {
+        get
+        {
+            var graces = MapPoints.Graces.Count;
+            var bosses = MapPoints.Bosses.Count;
+            return $"{graces} {Plural(graces, "место", "места", "мест")} благодати "
+                   + $"и {bosses} {Plural(bosses, "босс", "босса", "боссов")} на карте. "
+                   + "Прогресс подтягивается из вашего сохранения.";
+        }
+    }
+
+    /// <summary>
+    /// Русское склонение по числу. Числа берутся из справочника и меняются
+    /// вместе с ним, поэтому форму слова нельзя вписать руками.
+    /// </summary>
+    private static string Plural(int count, string one, string few, string many)
+    {
+        // 11-14 - исключение: "одиннадцать мест", а не "одиннадцать место".
+        if (count % 100 is >= 11 and <= 14) return many;
+
+        return (count % 10) switch
+        {
+            1 => one,
+            2 or 3 or 4 => few,
+            _ => many,
+        };
+    }
 
     public string SettingsPath => _settings.Path;
     public bool IsPortable => _settings.IsPortable;

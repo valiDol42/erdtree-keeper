@@ -375,7 +375,23 @@ public static class Dialogs
             {
                 Heading(AppInfo.Name),
                 Body($"Версия {AppInfo.FullVersion}. Хранитель файлов сохранения Elden Ring.\n"
-                     + $"Автор: {AppInfo.Author}. Лицензия MIT."),
+                     + "Лицензия MIT."),
+
+                new StackPanel
+                {
+                    Spacing = 4,
+                    Children =
+                    {
+                        new TextBlock { Text = "СВЯЗЬ", Classes = { "section" } },
+                        Link(ExternalLinks.Email, ExternalLinks.EmailLink),
+                        new TextBlock
+                        {
+                            Text = "Вопросы, ошибки и всё, что касается безопасности - сюда.",
+                            Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                    },
+                },
 
                 new StackPanel
                 {

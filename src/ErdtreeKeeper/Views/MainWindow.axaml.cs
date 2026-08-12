@@ -72,6 +72,12 @@ public partial class MainWindow : Window
     private void OnOpenSite(object? sender, RoutedEventArgs e) =>
         ExternalLinks.Open(ExternalLinks.Site);
 
+    private void OnOpenHome(object? sender, RoutedEventArgs e) =>
+        ExternalLinks.Open(ExternalLinks.Home);
+
+    private void OnOpenEmail(object? sender, RoutedEventArgs e) =>
+        ExternalLinks.Open(ExternalLinks.EmailLink);
+
     private void OnHideLog(object? sender, RoutedEventArgs e)
     {
         var toggle = this.FindControl<ToggleButton>("LogToggle");

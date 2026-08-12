@@ -17,6 +17,16 @@ public static class ExternalLinks
 
     public const string SiteLabel = "eldenring.krut.top";
 
+    /// <summary>Главная страница проектов.</summary>
+    public const string Home = "https://krut.top";
+
+    public const string HomeLabel = "krut.top";
+
+    /// <summary>Почта для связи.</summary>
+    public const string Email = "admin@krut.top";
+
+    public const string EmailLink = "mailto:admin@krut.top";
+
     /// <summary>Исходный код. На нём держится всё обещание открытости.</summary>
     public const string Repository = "https://github.com/valiDol42/erdtree-keeper";
 
@@ -26,7 +36,7 @@ public static class ExternalLinks
     {
         // Открываем только то, что задано в коде. Ничего, пришедшего из файла
         // настроек или из сейва, сюда попасть не может.
-        if (url != Site && url != Repository) return;
+        if (url is not (Site or Repository or Home or EmailLink)) return;
 
         try
         {

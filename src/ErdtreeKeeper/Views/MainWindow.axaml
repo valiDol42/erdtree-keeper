@@ -5,14 +5,14 @@
         x:Class="ErdtreeKeeper.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Erdtree Keeper"
-        Width="1180" Height="900"
+        Width="1180" Height="980"
         MinWidth="980" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackground}"
         Icon="avares://ErdtreeKeeper/Assets/erdtree-keeper.ico">
 
     <Panel>
-        <Grid RowDefinitions="Auto,*,Auto" Margin="20,16,20,0">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20,16,20,0">
 
             <!-- ─── Шапка ─────────────────────────────────────────────── -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,16">
@@ -37,17 +37,57 @@
                      объяснением, как их проверить, а не висит без контекста. -->
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <!-- Сайт проекта: заодно отвечает на вопрос "кто это написал" -->
-                    <Button Classes="link" Content="eldenring.krut.top"
-                            ToolTip.Tip="Открыть карту Elden Ring в браузере"
-                            Click="OnOpenSite" />
                     <Button Classes="ghost" Content="Что программа делает" Click="OnShowTransparency" />
                     <Button Classes="ghost" Content="О программе" Click="OnShowAbout" />
                 </StackPanel>
             </Grid>
 
+            <!-- ─── Трекер ────────────────────────────────────────────── -->
+            <!-- Числа берутся из того же справочника, которым программа
+                 называет снимки: обещание подкреплено содержимым файла. -->
+            <Border Grid.Row="1" Margin="0,0,0,14" Padding="15,10"
+                    CornerRadius="{DynamicResource RadiusLarge}"
+                    BorderBrush="{DynamicResource AccentDimBrush}" BorderThickness="1">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#221C0F" Offset="0" />
+                        <GradientStop Color="#171410" Offset="0.6" />
+                        <GradientStop Color="#15130F" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+
+                <Grid ColumnDefinitions="Auto,*,Auto" >
+                    <!-- Стилизованная карта с отмеченной точкой -->
+                    <Canvas Grid.Column="0" Width="34" Height="34" VerticalAlignment="Center"
+                            Margin="0,0,14,0">
+                        <Path Fill="{DynamicResource AccentDimBrush}"
+                              Data="M4 9 L14 5 L24 9 L34 5 L34 29 L24 33 L14 29 L4 33 Z" />
+                        <Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.2"
+                              Data="M14 5 L14 29 M24 9 L24 33" />
+                        <Ellipse Canvas.Left="16" Canvas.Top="14" Width="10" Height="10"
+                                 Fill="{DynamicResource AccentBrightBrush}" />
+                        <Ellipse Canvas.Left="19" Canvas.Top="17" Width="4" Height="4"
+                                 Fill="#15130F" />
+                    </Canvas>
+
+                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Erdtree Compass" Classes="title accent" />
+                            <TextBlock Text="интерактивная карта Elden Ring" Classes="secondary"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding TrackerPitch}" Classes="muted" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Classes="primary" Content="Открыть карту"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="eldenring.krut.top - откроется в браузере"
+                            Click="OnOpenSite" />
+                </Grid>
+            </Border>
+
             <!-- ─── Рабочая область ───────────────────────────────────── -->
-            <Grid Grid.Row="1" ColumnDefinitions="420,20,*">
+            <Grid Grid.Row="2" ColumnDefinitions="420,20,*">
 
                 <!-- ── Левая колонка ── -->
                 <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
@@ -316,7 +356,7 @@
             </Grid>
 
             <!-- ─── Низ: статус и подпись ─────────────────────────────── -->
-            <StackPanel Grid.Row="2" Margin="0,14,0,12">
+            <StackPanel Grid.Row="3" Margin="0,14,0,12">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="13"
                                Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
@@ -332,9 +372,14 @@
                     <TextBlock Text="{Binding FooterText}" Classes="muted"
                                VerticalAlignment="Center" />
                     <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
-                    <Button Classes="link" Content="eldenring.krut.top" Padding="0,2"
-                            ToolTip.Tip="Открыть сайт проекта в браузере"
-                            Click="OnOpenSite" />
+                    <Button Classes="link" Content="krut.top" Padding="0,2"
+                            ToolTip.Tip="Открыть krut.top в браузере"
+                            Click="OnOpenHome" />
+                    <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
+                    <!-- Почта для связи: по ней же присылают вопросы про безопасность -->
+                    <Button Classes="link" Content="admin@krut.top" Padding="0,2"
+                            ToolTip.Tip="Написать: admin@krut.top"
+                            Click="OnOpenEmail" />
                 </StackPanel>
             </StackPanel>
         </Grid>
