@@ -39,16 +39,25 @@ static void Shoot(string outputDir, int width, int height)
         Dialogs.CreateTransparencyWindow(model.SettingsPath, model.SnapshotFolder),
         "04-что-программа-делает.png", outputDir);
 
-    // Список переключён на автосохранения: восстанавливать можно и оттуда.
+    // Список переключён на автосохранения, настройки раскрыты.
     var auto = new MainViewModel();
     auto.DismissOnboardingCommand.Execute(null);
     auto.RefreshAccounts();
+    auto.AutoSnapshotEnabled = true;
     auto.SnapshotSourceIndex = 1;
+    Console.WriteLine($"   интервал: {auto.AutoMinutes} мин, хранить: {auto.AutoKeep}");
     Console.WriteLine($"   папка автосохранений: {auto.ListFolder}");
     Console.WriteLine($"   найдено файлов: {auto.Snapshots.Count}");
     var autoWindow = new MainWindow { DataContext = auto, Width = width, Height = height };
     autoWindow.Opened += (_, _) => auto.SelectedSnapshot = auto.Snapshots.FirstOrDefault();
     Capture(autoWindow, "07-автосохранения.png", outputDir);
+
+    // Сортировка по имени: тот же список в другом порядке.
+    auto.SortBy(SnapshotSort.Name);
+    Console.WriteLine($"   {auto.NameSortLabel}: {string.Join(" | ", auto.Snapshots.Select(s => s.Name[..Math.Min(18, s.Name.Length)]))}");
+    Capture(
+        new MainWindow { DataContext = auto, Width = width, Height = height },
+        "08-сортировка-по-имени.png", outputDir);
 
     // Журнал открыт: левая колонка не должна от этого сжиматься.
     var withLog = new MainViewModel();

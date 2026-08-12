@@ -18,8 +18,19 @@ public sealed class Settings
 
     public bool AutoSnapshotEnabled { get; set; }
 
-    /// <summary>Сколько автоснимков хранить, прежде чем удалять старые.</summary>
-    public int AutoSnapshotKeep { get; set; } = 20;
+    /// <summary>Куда складывать автосохранения. Пусто - подпапка рядом со снимками.</summary>
+    public string? AutoSnapshotFolder { get; set; }
+
+    /// <summary>
+    /// Не чаще одного автосохранения за столько минут.
+    ///
+    /// Это нижняя граница частоты, а не расписание: снимок всё равно делается
+    /// только после того, как игра записала сейв.
+    /// </summary>
+    public int AutoSnapshotMinutes { get; set; } = 5;
+
+    /// <summary>Сколько автосохранений хранить, прежде чем удалять старые.</summary>
+    public int AutoSnapshotKeep { get; set; } = 10;
 
     public bool OnboardingDone { get; set; }
 }

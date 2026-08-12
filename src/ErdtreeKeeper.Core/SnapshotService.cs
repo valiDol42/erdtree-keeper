@@ -41,10 +41,12 @@ public sealed class SnapshotService(ActivityLog log)
     public const string RestoreBackupFolder = "Перед восстановлением";
 
     /// <summary>
-    /// Подпапка для автоматических снимков. Называется так же, как пункт в
-    /// списке: иначе игрок ищет на диске папку, которой там нет.
+    /// Подпапка для автосохранений по умолчанию. Латиницей: путь может уехать
+    /// в консоль, в архив или на диск с другой кодировкой, и кириллица там
+    /// доставляет больше хлопот, чем пользы. Свою папку можно выбрать в
+    /// настройках автосохранения.
     /// </summary>
-    public const string AutoFolder = "Автосохранения";
+    public const string AutoFolder = "autosave";
 
     private readonly ActivityLog _log = log;
 

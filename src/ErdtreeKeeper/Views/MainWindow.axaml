@@ -5,7 +5,7 @@
         x:Class="ErdtreeKeeper.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Erdtree Keeper"
-        Width="1180" Height="840"
+        Width="1180" Height="900"
         MinWidth="980" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackground}"
@@ -47,6 +47,10 @@
                 </Border>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <!-- Сайт проекта: заодно отвечает на вопрос "кто это написал" -->
+                    <Button Classes="link" Content="eldenring.krut.top"
+                            ToolTip.Tip="Открыть карту Elden Ring в браузере"
+                            Click="OnOpenSite" />
                     <Button Classes="ghost" Content="Что программа делает" Click="OnShowTransparency" />
                     <Button Classes="ghost" Content="О программе" Click="OnShowAbout" />
                 </StackPanel>
@@ -166,9 +170,41 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding CreateSnapshotCommand}" />
 
-                                <CheckBox Content="Автосохранение"
-                                          ToolTip.Tip="Снимок делается не по таймеру, а когда игра действительно записала сейв и файл перестал меняться. Смотреть и восстанавливать их можно, переключив список справа на «Автосохранения»"
-                                          IsChecked="{Binding AutoSnapshotEnabled}" />
+                                <!-- Настройки показываются только при включённом
+                                     автосохранении: выключенному они не нужны. -->
+                                <StackPanel Spacing="10">
+                                    <CheckBox Content="Автосохранение"
+                                              ToolTip.Tip="Снимок делается после того, как игра запишет сейв. Смотреть и восстанавливать их можно, переключив список справа на «Автосохранения»"
+                                              IsChecked="{Binding AutoSnapshotEnabled}" />
+
+                                    <StackPanel Spacing="8" IsVisible="{Binding AutoSnapshotEnabled}">
+                                        <!-- Интервал - нижняя граница частоты, а не
+                                             расписание: снимок всё равно ждёт записи игрой. -->
+                                        <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="7">
+                                            <TextBlock Grid.Column="0" Text="раз в" Classes="secondary"
+                                                       VerticalAlignment="Center" />
+                                            <NumericUpDown Grid.Column="1" MinWidth="112"
+                                                           Minimum="1" Maximum="120" Increment="1"
+                                                           FormatString="0"
+                                                           ToolTip.Tip="Нижняя граница частоты: чаще этого автосохранение не сработает"
+                                                           Value="{Binding AutoMinutesValue}" />
+                                            <TextBlock Grid.Column="2" Text="мин, хранить" Classes="secondary"
+                                                       VerticalAlignment="Center" />
+                                            <NumericUpDown Grid.Column="3" MinWidth="112"
+                                                           Minimum="1" Maximum="200" Increment="1"
+                                                           FormatString="0"
+                                                           ToolTip.Tip="Автосохранения сверх этого числа удаляются, начиная со старых"
+                                                           Value="{Binding AutoKeepValue}" />
+                                        </Grid>
+
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBox Grid.Column="0" Text="{Binding AutoFolder}"
+                                                     ToolTip.Tip="{Binding AutoFolder}" />
+                                            <Button Grid.Column="1" Classes="chip" Content="Обзор..."
+                                                    Command="{Binding PickAutoFolderCommand}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -198,7 +234,20 @@
                                    Margin="0,0,0,12" TextTrimming="CharacterEllipsis" />
 
                         <Border Grid.Row="2" Classes="inset" Padding="8">
-                            <Panel>
+                            <Grid RowDefinitions="Auto,*">
+                                <!-- Заголовки сортируют список; повторный щелчок по
+                                     тому же столбцу переворачивает порядок, как в
+                                     проводнике - объяснять это не приходится. -->
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="4,2,4,6">
+                                    <Button Grid.Column="0" Classes="sort" HorizontalAlignment="Left"
+                                            Content="{Binding NameSortLabel}"
+                                            Command="{Binding SortByNameCommand}" />
+                                    <Button Grid.Column="1" Classes="sort"
+                                            Content="{Binding DateSortLabel}"
+                                            Command="{Binding SortByDateCommand}" />
+                                </Grid>
+
+                                <Panel Grid.Row="1">
                                 <ListBox ItemsSource="{Binding Snapshots}"
                                          SelectedItem="{Binding SelectedSnapshot}">
                                     <ListBox.ItemTemplate>
@@ -228,7 +277,8 @@
                                     <TextBlock Classes="muted" TextAlignment="Center"
                                                Text="{Binding EmptyStateHint}" />
                                 </StackPanel>
-                            </Panel>
+                                </Panel>
+                            </Grid>
                         </Border>
 
                         <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,12,0,0">
@@ -295,6 +345,12 @@
                     <TextBlock Classes="body" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="Эта программа копирует файлы сохранений Elden Ring, чтобы к ним можно было вернуться. Она открытая: исходный код можно прочитать целиком, и ниже честно написано, что именно она делает." />
 
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Её делает команда карты" Classes="secondary"
+                                   VerticalAlignment="Center" />
+                        <Button Classes="link" Content="eldenring.krut.top" Click="OnOpenSite" />
+                    </StackPanel>
+
                     <StackPanel Spacing="9">
                         <TextBlock Text="ЧТО ОНА ДЕЛАЕТ" Classes="section" />
                         <TextBlock Classes="secondary" Text="•  Читает файлы сохранений и копирует их в выбранную вами папку." />
@@ -304,7 +360,7 @@
 
                     <StackPanel Spacing="9">
                         <TextBlock Text="ЧЕГО ОНА НЕ ДЕЛАЕТ" Classes="section" />
-                        <TextBlock Classes="secondary" Text="•  Не выходит в интернет: ни обновлений, ни статистики, ни отправки файлов." />
+                        <TextBlock Classes="secondary" Text="•  Не выходит в интернет: ни обновлений, ни статистики, ни отправки файлов. Ссылка выше открывает сайт в вашем браузере - соединение устанавливает он, а не программа." />
                         <TextBlock Classes="secondary" Text="•  Не меняет ни одного байта внутри сохранения - только копирует файл целиком." />
                         <TextBlock Classes="secondary" Text="•  Не просит прав администратора и не трогает системные настройки." />
                         <TextBlock Classes="secondary" Text="•  Не запускается сама и ничего не прописывает в автозагрузку." />

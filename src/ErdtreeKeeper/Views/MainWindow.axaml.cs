@@ -70,6 +70,9 @@ public partial class MainWindow : Window
         if (ViewModel is { } vm) await vm.LoadAsync();
     }
 
+    private void OnOpenSite(object? sender, RoutedEventArgs e) =>
+        ExternalLinks.Open(ExternalLinks.Site);
+
     private void OnHideLog(object? sender, RoutedEventArgs e)
     {
         var toggle = this.FindControl<ToggleButton>("LogToggle");

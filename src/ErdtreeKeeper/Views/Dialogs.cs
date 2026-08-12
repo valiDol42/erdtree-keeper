@@ -55,6 +55,21 @@ public static class Dialogs
         Foreground = Res<IBrush>("TextSecondaryBrush"),
     };
 
+    /// <summary>Ссылка на сайт проекта. Открывает браузер, ничего не качает сама.</summary>
+    private static Button SiteLink()
+    {
+        var button = new Button
+        {
+            Content = ExternalLinks.SiteLabel,
+            Classes = { "link" },
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(0, 2),
+        };
+
+        button.Click += (_, _) => ExternalLinks.Open(ExternalLinks.Site);
+        return button;
+    }
+
     private static Button Action(string text, bool primary = false, bool danger = false)
     {
         var button = new Button { Content = text, MinWidth = 110 };
@@ -225,7 +240,10 @@ public static class Dialogs
                     + $"подпапку \"{Core.SnapshotService.RestoreBackupFolder}\"."),
 
                 Section("Не делает", Res<IBrush>("FreshBrush"),
-                    "Не обращается в интернет - ни за обновлениями, ни со статистикой.\n"
+                    "Не обращается в интернет - ни за обновлениями, ни со статистикой. "
+                    + "Ссылка на сайт проекта - единственное исключение, и работает она "
+                    + "не сама: по щелчку программа просит систему открыть браузер, "
+                    + "а соединение устанавливает уже он.\n"
                     + "Не меняет содержимое сохранений: копируется файл целиком, байт в байт.\n"
                     + "Не просит прав администратора.\n"
                     + "Не прописывается в автозагрузку и не остаётся в памяти после закрытия.\n"
@@ -302,6 +320,23 @@ public static class Dialogs
             {
                 Heading("Erdtree Keeper"),
                 Body($"Версия {version}. Хранитель сохранений Elden Ring."),
+
+                new StackPanel
+                {
+                    Spacing = 4,
+                    Children =
+                    {
+                        new TextBlock { Text = "ПРОЕКТ", Classes = { "section" } },
+                        SiteLink(),
+                        new TextBlock
+                        {
+                            Text = "Карта и трекер прогресса Elden Ring. Оттуда же взят справочник "
+                                   + "мест благодати и арен боссов, по которому программа называет снимки.",
+                            Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                    },
+                },
 
                 // Пути не зашиты: папка программы берётся у самого процесса,
                 // а состояние файла настроек читается с диска при открытии окна.

@@ -107,6 +107,49 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
     </Style>
 
+    <!-- Ссылка наружу: открывается в браузере, поэтому и выглядит как ссылка -->
+    <Style Selector="Button.link">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+    </Style>
+
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentWashBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
+    <!-- Заголовок столбца: выглядит как подпись, ведёт себя как кнопка -->
+    <Style Selector="Button.sort">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="Padding" Value="6,3" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+    </Style>
+
+    <Style Selector="Button.sort:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
+    <!-- Поле со стрелками: приводим к общему виду с остальными полями -->
+    <Style Selector="NumericUpDown">
+        <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
     <!-- ToggleButton не наследует стили Button, поэтому повторяем их здесь -->
     <Style Selector="ToggleButton.ghost">
         <Setter Property="Background" Value="Transparent" />

@@ -9,6 +9,9 @@ namespace ErdtreeKeeper.ViewModels;
 /// <summary>Насколько свежий сейв на диске.</summary>
 public enum Freshness { Unknown, Fresh, Stale, Old }
 
+/// <summary>По какому столбцу отсортирован список снимков.</summary>
+public enum SnapshotSort { Name, Created }
+
 /// <summary>Аккаунт в списке: длинный SteamID неудобен, поэтому его можно подписать.</summary>
 public sealed class AccountItem(SaveAccount account, string? alias)
 {
@@ -49,6 +52,9 @@ public sealed class MainViewModel : ViewModelBase
         CheckIntegrityCommand = new AsyncRelayCommand(CheckIntegrityAsync, () => SelectedSaveFile is not null);
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => SelectedSaveFile is not null);
         PickFolderCommand = new AsyncRelayCommand(PickSnapshotFolderAsync);
+        PickAutoFolderCommand = new AsyncRelayCommand(PickAutoFolderAsync);
+        SortByNameCommand = new RelayCommand(() => SortBy(SnapshotSort.Name));
+        SortByDateCommand = new RelayCommand(() => SortBy(SnapshotSort.Created));
         RenameAccountCommand = new AsyncRelayCommand(RenameAccountAsync, () => SelectedAccount is not null);
         OpenSnapshotFolderCommand = new RelayCommand(() => OpenInExplorer(ListFolder));
         OpenGameFolderCommand = new RelayCommand(() => OpenInExplorer(SelectedAccount?.Account.Path));
@@ -62,6 +68,8 @@ public sealed class MainViewModel : ViewModelBase
         ClearNameCommand = new RelayCommand(() => SnapshotName = "");
 
         SnapshotFolder = _settings.Values.SnapshotFolder ?? Path.Combine(PortableSettings.AppFolder, "Снимки");
+        AutoFolder = _settings.Values.AutoSnapshotFolder
+                     ?? Path.Combine(SnapshotFolder, SnapshotService.AutoFolder);
         SnapshotName = _settings.Values.LastSnapshotName ?? "";
         AutoSnapshotEnabled = _settings.Values.AutoSnapshotEnabled;
         ShowOnboarding = !_settings.Values.OnboardingDone;
@@ -141,13 +149,83 @@ public sealed class MainViewModel : ViewModelBase
         get => _snapshotFolder;
         set
         {
+            var previous = _snapshotFolder;
             if (!Set(ref _snapshotFolder, value)) return;
             _settings.Values.SnapshotFolder = value;
             _settings.Save();
+
+            // Если папка автосохранений так и осталась подпапкой прежней - она
+            // переезжает следом. Выбранную вручную не трогаем.
+            if (previous.Length > 0 && _autoFolder == Path.Combine(previous, SnapshotService.AutoFolder))
+            {
+                AutoFolder = Path.Combine(value, SnapshotService.AutoFolder);
+            }
+
             OnPropertyChanged(nameof(ListFolder));
             RefreshSnapshots();
             UpdateCreateAvailability();
         }
+    }
+
+    private string _autoFolder = "";
+    /// <summary>
+    /// Куда складывать автосохранения. По умолчанию - подпапка рядом со
+    /// снимками, но её можно увести куда угодно: например, на другой диск,
+    /// чтобы копии пережили переустановку системы.
+    /// </summary>
+    public string AutoFolder
+    {
+        get => _autoFolder;
+        set
+        {
+            if (!Set(ref _autoFolder, value)) return;
+            _settings.Values.AutoSnapshotFolder = value;
+            _settings.Save();
+            OnPropertyChanged(nameof(ListFolder));
+            if (IsAutoFolder) RefreshSnapshots();
+        }
+    }
+
+    /// <summary>Не чаще одного автосохранения за столько минут.</summary>
+    public int AutoMinutes
+    {
+        get => _settings.Values.AutoSnapshotMinutes;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 120);
+            if (_settings.Values.AutoSnapshotMinutes == clamped) return;
+            _settings.Values.AutoSnapshotMinutes = clamped;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Сколько последних автосохранений хранить.</summary>
+    public int AutoKeep
+    {
+        get => _settings.Values.AutoSnapshotKeep;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 200);
+            if (_settings.Values.AutoSnapshotKeep == clamped) return;
+            _settings.Values.AutoSnapshotKeep = clamped;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    // NumericUpDown отдаёт decimal?, а хранить настройку удобнее целым числом.
+    // Эти две обёртки существуют только ради привязки.
+    public decimal? AutoMinutesValue
+    {
+        get => AutoMinutes;
+        set { if (value is { } v) AutoMinutes = (int)v; }
+    }
+
+    public decimal? AutoKeepValue
+    {
+        get => AutoKeep;
+        set { if (value is { } v) AutoKeep = (int)v; }
     }
 
     /// <summary>Что показывает список: отобранные вручную снимки или автосохранения.</summary>
@@ -175,9 +253,48 @@ public sealed class MainViewModel : ViewModelBase
     /// Все действия под списком - переименовать, удалить, восстановить -
     /// работают с тем, что видно, а не с какой-то другой папкой.
     /// </summary>
-    public string ListFolder => IsAutoFolder
-        ? Path.Combine(SnapshotFolder, SnapshotService.AutoFolder)
-        : SnapshotFolder;
+    public string ListFolder => IsAutoFolder ? AutoFolder : SnapshotFolder;
+
+    // ─── Сортировка списка ──────────────────────────────────────────────
+
+    private SnapshotSort _sortField = SnapshotSort.Created;
+    private bool _sortDescending = true;
+
+    /// <summary>
+    /// Переключает сортировку. Повторный щелчок по тому же столбцу меняет
+    /// направление - как в проводнике, чтобы не пришлось объяснять.
+    /// </summary>
+    public void SortBy(SnapshotSort field)
+    {
+        if (_sortField == field)
+        {
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortField = field;
+            // Даты по умолчанию сверху свежие, имена - от А: так ожидаемее.
+            _sortDescending = field == SnapshotSort.Created;
+        }
+
+        OnPropertyChanged(nameof(NameSortLabel));
+        OnPropertyChanged(nameof(DateSortLabel));
+        RefreshSnapshots();
+    }
+
+    public string NameSortLabel => SortLabel("Имя", SnapshotSort.Name);
+    public string DateSortLabel => SortLabel("Изменён", SnapshotSort.Created);
+
+    private string SortLabel(string title, SnapshotSort field) =>
+        _sortField == field ? $"{title}  {(_sortDescending ? "↓" : "↑")}" : title;
+
+    private IEnumerable<Snapshot> ApplySort(IEnumerable<Snapshot> snapshots) => (_sortField, _sortDescending) switch
+    {
+        (SnapshotSort.Name, false) => snapshots.OrderBy(s => s.Name, NaturalFileNameComparer.Instance),
+        (SnapshotSort.Name, true) => snapshots.OrderByDescending(s => s.Name, NaturalFileNameComparer.Instance),
+        (_, false) => snapshots.OrderBy(s => s.Created),
+        _ => snapshots.OrderByDescending(s => s.Created),
+    };
 
     public string EmptyStateHint => IsAutoFolder
         ? "Включите автосохранение слева. Снимок появится здесь после того, как игра запишет сейв."
@@ -330,6 +447,9 @@ public sealed class MainViewModel : ViewModelBase
     public AsyncRelayCommand CheckIntegrityCommand { get; }
     public AsyncRelayCommand AnalyzeCommand { get; }
     public AsyncRelayCommand PickFolderCommand { get; }
+    public AsyncRelayCommand PickAutoFolderCommand { get; }
+    public RelayCommand SortByNameCommand { get; }
+    public RelayCommand SortByDateCommand { get; }
     public AsyncRelayCommand RenameAccountCommand { get; }
     public AsyncRelayCommand ExportLogCommand { get; }
     public RelayCommand OpenSnapshotFolderCommand { get; }
@@ -412,7 +532,7 @@ public sealed class MainViewModel : ViewModelBase
         var wanted = SelectedSnapshot?.Name;
 
         Snapshots.Clear();
-        foreach (var snapshot in _snapshotService.List(ListFolder))
+        foreach (var snapshot in ApplySort(_snapshotService.List(ListFolder)))
         {
             Snapshots.Add(snapshot);
         }
@@ -661,6 +781,17 @@ public sealed class MainViewModel : ViewModelBase
         Log.Info("Папка снимков изменена", picked);
     }
 
+    private async Task PickAutoFolderAsync()
+    {
+        if (PickFolderAsync is null) return;
+
+        var picked = await PickFolderAsync("Куда складывать автосохранения", AutoFolder);
+        if (string.IsNullOrWhiteSpace(picked)) return;
+
+        AutoFolder = picked;
+        Log.Info("Папка автосохранений изменена", picked);
+    }
+
     private async Task ExportLogAsync()
     {
         if (SaveFileAsync is null) return;
@@ -780,7 +911,9 @@ public sealed class MainViewModel : ViewModelBase
         if ((DateTime.Now - _pendingWrite.Value).TotalSeconds < 6) return;
         _pendingWrite = null;
 
-        if ((DateTime.Now - _lastAutoSnapshot).TotalSeconds < 30) return;
+        // Нижняя граница частоты: игра пишет сейв часто, и без неё папка
+        // забивалась бы почти одинаковыми копиями.
+        if ((DateTime.Now - _lastAutoSnapshot).TotalMinutes < AutoMinutes) return;
         _lastAutoSnapshot = DateTime.Now;
 
         _ = TakeAutoSnapshotAsync();
@@ -790,7 +923,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedSaveFile is null) return;
 
-        var folder = Path.Combine(SnapshotFolder, SnapshotService.AutoFolder);
+        var folder = AutoFolder;
         var path = SelectedSaveFile.Path;
 
         try
@@ -806,7 +939,7 @@ public sealed class MainViewModel : ViewModelBase
 
             if (result.Success)
             {
-                var removed = _snapshotService.Rotate(folder, Math.Max(1, _settings.Values.AutoSnapshotKeep));
+                var removed = _snapshotService.Rotate(folder, AutoKeep);
                 Say(removed > 0 ? $"Автоснимок: {name} (удалено старых: {removed})" : $"Автоснимок: {name}",
                     "FreshBrush");
                 RefreshSnapshots();

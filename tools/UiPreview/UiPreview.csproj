@@ -12,6 +12,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+
+    <!-- Должно совпадать с боевой сборкой, иначе снимки экрана врут:
+         под InvariantGlobalization строки сравниваются по другим правилам. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
