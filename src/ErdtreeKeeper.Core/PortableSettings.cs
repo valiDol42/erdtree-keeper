@@ -95,15 +95,18 @@ public sealed class PortableSettings
         catch (UnauthorizedAccessException) { return "нет доступа к файлу"; }
     }
 
-    public static PortableSettings Load()
-    {
-        var portablePath = System.IO.Path.Combine(AppFolder, FileName);
-        var portable = true;
+    public static PortableSettings Load() => LoadFrom(AppFolder);
 
-        if (!CanWriteTo(AppFolder))
-        {
-            portable = false;
-        }
+    /// <summary>
+    /// То же самое, но для заданной папки программы.
+    ///
+    /// Существует ради тестов: обычная загрузка привязана к тому, откуда
+    /// запущен процесс, и проверить сохранение настроек иначе было бы нечем.
+    /// </summary>
+    public static PortableSettings LoadFrom(string appFolder)
+    {
+        var portablePath = System.IO.Path.Combine(appFolder, FileName);
+        var portable = CanWriteTo(appFolder);
 
         var path = portable
             ? portablePath
@@ -118,7 +121,7 @@ public sealed class PortableSettings
                      ?? (portable ? null : ReadOrDefault(portablePath))
                      ?? new Settings();
 
-        values.SnapshotFolder ??= System.IO.Path.Combine(AppFolder, "Снимки");
+        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, "Снимки");
 
         return new PortableSettings(path, values, portable);
     }
