@@ -1,0 +1,304 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ErdtreeKeeper.ViewModels"
+        xmlns:core="using:ErdtreeKeeper.Core"
+        x:Class="ErdtreeKeeper.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Erdtree Keeper"
+        Width="1180" Height="840"
+        MinWidth="980" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackground}"
+        Icon="avares://ErdtreeKeeper/Assets/erdtree-keeper.ico">
+
+    <Panel>
+        <Grid RowDefinitions="Auto,*,Auto" Margin="20,16,20,0">
+
+            <!-- ─── Шапка ─────────────────────────────────────────────── -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,16">
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <!-- Собственный знак: ветвь и хранилище. Ассетов игры в проекте нет. -->
+                    <Canvas Width="30" Height="30">
+                        <Path Fill="{DynamicResource AccentBrush}"
+                              Data="M15 2 L17.6 8.4 L24 6.6 L20.2 12 L26 15 L20.2 18 L24 23.4 L17.6 21.6 L15 28 L12.4 21.6 L6 23.4 L9.8 18 L4 15 L9.8 12 L6 6.6 L12.4 8.4 Z" />
+                        <Ellipse Canvas.Left="11" Canvas.Top="11" Width="8" Height="8"
+                                 Fill="{DynamicResource AppBackground}" />
+                    </Canvas>
+
+                    <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="Erdtree Keeper" Classes="title" />
+                        <TextBlock Text="Хранитель сохранений Elden Ring" Classes="muted" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Знак того, что программа не ходит в сеть. Главный довод для
+                     недоверчивого игрока, поэтому он на виду, а не в "О программе". -->
+                <Border Grid.Column="1" HorizontalAlignment="Left" Margin="20,0,0,0"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource FreshWashBrush}"
+                        BorderBrush="{DynamicResource FreshBrush}" BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusSmall}" Padding="10,5">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource FreshBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Не выходит в интернет" FontSize="12"
+                                   Foreground="{DynamicResource FreshBrush}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Button Classes="ghost" Content="Что программа делает" Click="OnShowTransparency" />
+                    <Button Classes="ghost" Content="О программе" Click="OnShowAbout" />
+                </StackPanel>
+            </Grid>
+
+            <!-- ─── Рабочая область ───────────────────────────────────── -->
+            <Grid Grid.Row="1" ColumnDefinitions="420,20,*">
+
+                <!-- ── Левая колонка ── -->
+                <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
+
+                        <!-- Откуда -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="ОТКУДА" Classes="section" />
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Аккаунт Steam" Classes="secondary" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <ComboBox Grid.Column="0"
+                                                  ItemsSource="{Binding Accounts}"
+                                                  SelectedItem="{Binding SelectedAccount}"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:AccountItem">
+                                                    <TextBlock Text="{Binding Display}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Grid.Column="1" Content="Подписать"
+                                                Command="{Binding RenameAccountCommand}" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Файл сохранения" Classes="secondary" />
+                                    <ComboBox ItemsSource="{Binding SaveFiles}"
+                                              SelectedItem="{Binding SelectedSaveFile}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="core:SaveFile">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Свежесть сейва: главный индикатор экрана.
+                                     Игра пишет файл с задержкой, и копия, снятая
+                                     раньше записи, не содержит последних событий. -->
+                                <Border CornerRadius="{DynamicResource RadiusMedium}"
+                                        Background="{Binding FreshnessWash}"
+                                        BorderBrush="{Binding FreshnessBrush}"
+                                        BorderThickness="1" Padding="12">
+                                    <StackPanel Spacing="5">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                     Fill="{Binding FreshnessBrush}" />
+                                            <TextBlock Text="{Binding FreshnessText}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{Binding FreshnessBrush}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding FreshnessHint}" Classes="secondary"
+                                                   IsVisible="{Binding FreshnessHint,
+                                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Classes="inset">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="{Binding CharacterLine}" Classes="body" />
+                                        <TextBlock Text="{Binding PlaceLine}" Classes="secondary"
+                                                   IsVisible="{Binding HasContext}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                    <Button Grid.Column="0" Content="Прочитать сейв"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding AnalyzeCommand}" />
+                                    <Button Grid.Column="1" Content="Проверить целостность"
+                                            HorizontalAlignment="Stretch"
+                                            Command="{Binding CheckIntegrityCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Имя снимка -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="ИМЯ СНИМКА" Classes="section" />
+
+                                <TextBox Text="{Binding SnapshotName}"
+                                         PlaceholderText="например: Годрик" />
+
+                                <!-- Имя набирается кнопками: так написание одного
+                                     и того же места не расходится между файлами. -->
+                                <WrapPanel ItemSpacing="6" LineSpacing="6">
+                                    <Button Classes="chip" Content="+ локация"
+                                            ToolTip.Tip="Подставить ближайшее место благодати из сейва"
+                                            Command="{Binding AddLocationCommand}" />
+                                    <Button Classes="chip" Content="+ босс"
+                                            ToolTip.Tip="Подставить ближайшую арену босса из сейва"
+                                            Command="{Binding AddBossCommand}" />
+                                    <Button Classes="chip" Content="+ до"
+                                            Command="{Binding AddBeforeCommand}" />
+                                    <Button Classes="chip" Content="+ после"
+                                            Command="{Binding AddAfterCommand}" />
+                                    <Button Classes="chip" Content="очистить"
+                                            Command="{Binding ClearNameCommand}" />
+                                </WrapPanel>
+
+                                <TextBlock Text="{Binding SnapshotPreview}" Classes="muted" />
+
+                                <Button Classes="primary" Content="Сделать снимок"
+                                        HorizontalAlignment="Stretch"
+                                        Command="{Binding CreateSnapshotCommand}" />
+
+                                <CheckBox Content="Снимать автоматически"
+                                          ToolTip.Tip="Снимок делается не по таймеру, а когда игра действительно записала сейв и файл перестал меняться"
+                                          IsChecked="{Binding AutoSnapshotEnabled}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ── Правая колонка ── -->
+                <Border Grid.Column="2" Classes="card">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto" >
+
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                            <TextBlock Grid.Column="0" Text="СНИМКИ" Classes="section" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                <Button Classes="chip" Content="Обзор..." Command="{Binding PickFolderCommand}" />
+                                <Button Classes="chip" Content="Открыть папку" Command="{Binding OpenSnapshotFolderCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1" Text="{Binding SnapshotFolder}" Classes="muted"
+                                   Margin="0,0,0,12" TextTrimming="CharacterEllipsis" />
+
+                        <Border Grid.Row="2" Classes="inset" Padding="8">
+                            <Panel>
+                                <ListBox ItemsSource="{Binding Snapshots}"
+                                         SelectedItem="{Binding SelectedSnapshot}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="core:Snapshot">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                           FontSize="13" TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+                                                    <TextBlock Text="{Binding SizeText}" Classes="muted"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Created, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"
+                                                               Classes="muted" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Пустое состояние объясняет, что делать дальше -->
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                            Spacing="6" MaxWidth="380"
+                                            IsVisible="{Binding !Snapshots.Count}">
+                                    <TextBlock Text="Снимков пока нет" Classes="body"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Classes="muted" TextAlignment="Center"
+                                               Text="Сядьте у благодати, чтобы игра записала сейв, задайте имя слева и нажмите «Сделать снимок»." />
+                                </StackPanel>
+                            </Panel>
+                        </Border>
+
+                        <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,12,0,0">
+                            <Button Grid.Column="0" Content="Переименовать" Command="{Binding RenameCommand}" />
+                            <Button Grid.Column="1" Content="Удалить" Command="{Binding DeleteCommand}" />
+                            <!-- Необратимое действие стоит поодаль от остальных -->
+                            <Button Grid.Column="3" Classes="danger" Content="Восстановить в игру"
+                                    Command="{Binding RestoreCommand}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ─── Низ: статус и журнал ──────────────────────────────── -->
+            <StackPanel Grid.Row="2" Spacing="0" Margin="0,16,0,0">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                    <TextBlock Grid.Column="0" Text="{Binding Status}" FontSize="13"
+                               Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <Button Classes="ghost" Content="Выгрузить журнал" Command="{Binding ExportLogCommand}" />
+                        <ToggleButton Name="LogToggle" Classes="ghost" Content="Журнал операций" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Журнал: полный список того, что программа трогала на диске -->
+                <Border Classes="inset" Height="150" Margin="0,0,0,16"
+                        IsVisible="{Binding #LogToggle.IsChecked}">
+                    <ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding Log.Entries}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:ActivityEntry">
+                                    <TextBlock Text="{Binding Line}" Classes="mono"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Margin="0,0,0,3" TextWrapping="NoWrap" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- ─── Первый запуск ─────────────────────────────────────────── -->
+        <Border IsVisible="{Binding ShowOnboarding}" Background="#D0000000">
+            <Border Classes="card" MaxWidth="640" Padding="28"
+                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Прежде чем начать" Classes="display" />
+
+                    <TextBlock Classes="body" Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="Эта программа копирует файлы сохранений Elden Ring, чтобы к ним можно было вернуться. Она открытая: исходный код можно прочитать целиком, и ниже честно написано, что именно она делает." />
+
+                    <StackPanel Spacing="9">
+                        <TextBlock Text="ЧТО ОНА ДЕЛАЕТ" Classes="section" />
+                        <TextBlock Classes="secondary" Text="•  Читает файлы сохранений и копирует их в выбранную вами папку." />
+                        <TextBlock Classes="secondary" Text="•  По вашей команде кладёт копию обратно в папку игры, предварительно сохранив текущий сейв." />
+                        <TextBlock Classes="secondary" Text="•  Хранит настройки в одном файле рядом с собой." />
+                    </StackPanel>
+
+                    <StackPanel Spacing="9">
+                        <TextBlock Text="ЧЕГО ОНА НЕ ДЕЛАЕТ" Classes="section" />
+                        <TextBlock Classes="secondary" Text="•  Не выходит в интернет: ни обновлений, ни статистики, ни отправки файлов." />
+                        <TextBlock Classes="secondary" Text="•  Не меняет ни одного байта внутри сохранения - только копирует файл целиком." />
+                        <TextBlock Classes="secondary" Text="•  Не просит прав администратора и не трогает системные настройки." />
+                        <TextBlock Classes="secondary" Text="•  Не запускается сама и ничего не прописывает в автозагрузку." />
+                    </StackPanel>
+
+                    <Border Classes="inset" Background="{DynamicResource WarnWashBrush}"
+                            BorderBrush="{DynamicResource WarnBrush}">
+                        <TextBlock Classes="secondary" Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Text="Восстановление заменяет сейв в игре. Программа всегда сначала откладывает текущий файл в резервную копию, но игру перед этим нужно полностью закрыть - иначе она перезапишет файл своим состоянием." />
+                    </Border>
+
+                    <Button Classes="primary" Content="Понятно" HorizontalAlignment="Right"
+                            Command="{Binding DismissOnboardingCommand}" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Panel>
+</Window>

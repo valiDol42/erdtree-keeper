@@ -1,0 +1,98 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Палитра. Тёплый тёмный фон и золото - отсылка к настроению игры, но
+        без единого её файла: только цвета и собственная векторная графика.
+        Никаких ассетов FromSoftware в проекте нет и быть не должно.
+    -->
+    <Styles.Resources>
+
+        <!-- Поверхности -->
+        <SolidColorBrush x:Key="AppBackground" Color="#12100D" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#1A1714" />
+        <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#221E19" />
+        <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#2A251E" />
+        <SolidColorBrush x:Key="HairlineBrush" Color="#332C24" />
+        <SolidColorBrush x:Key="HairlineStrongBrush" Color="#453B2F" />
+
+        <!-- Текст -->
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#EDE6D8" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A2988A" />
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#6E665B" />
+
+        <!-- Акцент -->
+        <SolidColorBrush x:Key="AccentBrush" Color="#C9A227" />
+        <SolidColorBrush x:Key="AccentBrightBrush" Color="#E3BE4B" />
+        <SolidColorBrush x:Key="AccentDimBrush" Color="#6B571A" />
+        <SolidColorBrush x:Key="AccentWashBrush" Color="#1F1B10" />
+
+        <!-- Состояния -->
+        <SolidColorBrush x:Key="FreshBrush" Color="#8FBF5A" />
+        <SolidColorBrush x:Key="FreshWashBrush" Color="#161C12" />
+        <SolidColorBrush x:Key="WarnBrush" Color="#E0982F" />
+        <SolidColorBrush x:Key="WarnWashBrush" Color="#211A0F" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#D2604A" />
+        <SolidColorBrush x:Key="DangerWashBrush" Color="#231310" />
+
+        <!-- Размеры -->
+        <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
+        <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
+        <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+
+        <FontFamily x:Key="UiFont">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+    </Styles.Resources>
+
+    <!-- ─── Типографика ─────────────────────────────────────────────────── -->
+
+    <Style Selector="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.display">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LineHeight" Value="26" />
+    </Style>
+
+    <Style Selector="TextBlock.title">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Заголовок раздела: разрядка делает его тише основного текста -->
+    <Style Selector="TextBlock.section">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="1.2" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.body">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="19" />
+    </Style>
+
+    <Style Selector="TextBlock.secondary">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="LineHeight" Value="18" />
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, monospace" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="TextBlock.accent">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
+</Styles>

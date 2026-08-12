@@ -1,0 +1,59 @@
+name: Сборка и тесты
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Тесты
+        # Тесты, которым нужны настоящие сейвы, пропускаются сами:
+        # переменная ERDTREE_KEEPER_FIXTURES здесь не задана.
+        run: dotnet test --configuration Release
+
+      - name: Сборка релизного exe
+        run: >
+          dotnet publish src/ErdtreeKeeper/ErdtreeKeeper.csproj
+          --configuration Release --runtime win-x64 --output out
+
+      - name: Проверить, что exe не консольный
+        # Подсистема должна быть GUI (2). Если станет 3, у пользователя за окном
+        # появится чёрная консоль - ровно то, от чего ушли.
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("out/ErdtreeKeeper.exe")
+          $peOffset = [BitConverter]::ToUInt32($bytes, 0x3c)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5c)
+          Write-Host "PE subsystem: $subsystem"
+          if ($subsystem -ne 2) { throw "Ожидалась подсистема GUI (2), получено $subsystem" }
+
+      - name: Проверить, что в exe нет сетевых библиотек
+        # README обещает, что программа не умеет выходить в интернет. Если
+        # кто-то добавит зависимость, открывающую сокеты, сборка должна упасть,
+        # а не тихо превратить обещание в неправду.
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("out/ErdtreeKeeper.exe")
+          $text = [Text.Encoding]::ASCII.GetString($bytes)
+          $forbidden = @('ws2_32.dll', 'wininet.dll', 'winhttp.dll', 'urlmon.dll', 'wsock32.dll')
+          $found = $forbidden | Where-Object { $text -match [regex]::Escape($_) }
+          if ($found) { throw "В exe попали сетевые библиотеки: $($found -join ', ')" }
+          Write-Host "Сетевых библиотек нет"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdtree-keeper-win-x64
+          path: |
+            out/*.exe
+            out/*.dll

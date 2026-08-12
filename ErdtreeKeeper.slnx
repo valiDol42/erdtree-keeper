@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ErdtreeKeeper.Core/ErdtreeKeeper.Core.csproj" />
+    <Project Path="src/ErdtreeKeeper/ErdtreeKeeper.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ErdtreeKeeper.Core.Tests/ErdtreeKeeper.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/UiPreview/UiPreview.csproj" />
+  </Folder>
+</Solution>

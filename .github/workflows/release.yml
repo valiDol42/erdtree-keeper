@@ -1,0 +1,120 @@
+name: Релиз
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия, например v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Версия из тега
+        id: version
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $env:GITHUB_REF -replace 'refs/tags/', ''
+          } else {
+            '${{ inputs.version }}'
+          }
+          $number = $tag.TrimStart('v')
+          "tag=$tag"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "number=$number" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Тесты
+        run: dotnet test --configuration Release
+
+      - name: Сборка
+        run: >
+          dotnet publish src/ErdtreeKeeper/ErdtreeKeeper.csproj
+          --configuration Release --runtime win-x64 --output out
+          -p:Version=${{ steps.version.outputs.number }}
+          -p:InformationalVersion=${{ steps.version.outputs.number }}
+
+      - name: Проверить, что exe не консольный
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("out/ErdtreeKeeper.exe")
+          $peOffset = [BitConverter]::ToUInt32($bytes, 0x3c)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5c)
+          if ($subsystem -ne 2) { throw "Ожидалась подсистема GUI (2), получено $subsystem" }
+
+      - name: Собрать архив
+        shell: pwsh
+        run: |
+          $name = "ErdtreeKeeper-${{ steps.version.outputs.tag }}-win-x64"
+          New-Item -ItemType Directory -Path dist/$name | Out-Null
+          # В поставку идут только exe и нативные библиотеки отрисовки.
+          Copy-Item out/*.exe, out/*.dll dist/$name
+          Copy-Item README.md, SECURITY.md, LICENSE dist/$name
+          Compress-Archive -Path dist/$name -DestinationPath dist/$name.zip
+          Get-ChildItem dist/$name | Select-Object Name, Length
+
+      - name: Контрольные суммы
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem dist/*.zip, out/ErdtreeKeeper.exe | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          }
+          $lines | Tee-Object -FilePath dist/SHA256SUMS.txt
+
+      # Подтверждает, что файл собран из этого репозитория этим рабочим процессом.
+      # Проверка у пользователя: gh attestation verify <файл> --repo <owner>/<repo>
+      - name: Attestation происхождения сборки
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.zip
+            out/ErdtreeKeeper.exe
+
+      - name: Опубликовать релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Erdtree Keeper ${{ steps.version.outputs.tag }}
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          body: |
+            ## Как проверить, что файл настоящий
+
+            **Контрольная сумма.** Сравните с `SHA256SUMS.txt`:
+
+            ```powershell
+            Get-FileHash .\ErdtreeKeeper.exe -Algorithm SHA256
+            ```
+
+            Ту же сумму программа считает сама - в окне «О программе».
+
+            **Происхождение сборки.** Файл собран здесь, в GitHub Actions, из открытого кода:
+
+            ```bash
+            gh attestation verify ErdtreeKeeper.exe --repo ${{ github.repository }}
+            ```
+
+            ## Установка
+
+            Распакуйте архив в любую папку и запустите `ErdtreeKeeper.exe`. Установщика нет,
+            программа портативная, настройки лежат рядом с ней.
+
+            При первом запуске Windows может показать окно SmartScreen: у программы нет
+            платного сертификата подписи. Это сообщение об отсутствии репутации, а не о
+            вредоносности - подробности в [SECURITY.md](SECURITY.md).
