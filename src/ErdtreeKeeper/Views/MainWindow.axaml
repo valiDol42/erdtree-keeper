@@ -75,6 +75,9 @@
                             <TextBlock Text="Erdtree Compass" Classes="title accent" />
                             <TextBlock Text="интерактивная карта Elden Ring" Classes="secondary"
                                        VerticalAlignment="Center" />
+                            <TextBlock Text="Удобно и абсолютно безопасно!" Classes="secondary"
+                                       Foreground="{DynamicResource FreshBrush}"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Text="{Binding TrackerPitch}" Classes="muted" />
                     </StackPanel>
