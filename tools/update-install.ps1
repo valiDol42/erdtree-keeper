@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Обновляет портативную установку Erdtree Keeper, не трогая данные пользователя.
 
@@ -15,20 +15,28 @@
     ./tools/update-install.ps1 -Target 'D:\Программы\ErdtreeKeeper'
 #>
 
+#Requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string] $Target,
 
     # Папка со свежесобранными файлами (результат dotnet publish).
-    [string] $Source = (Join-Path $PSScriptRoot '..\out')
+    # Значение по умолчанию вычисляется ниже, а не здесь: в Windows PowerShell
+    # 5.1 $PSScriptRoot при разборе параметров ещё пуст.
+    [string] $Source
 )
 
 $ErrorActionPreference = 'Stop'
 
-$Source = (Resolve-Path $Source).Path
-if (-not (Test-Path $Source)) { throw "Нет папки сборки: $Source" }
+if (-not $Source) {
+    $root = $PSScriptRoot
+    if (-not $root) { $root = Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $Source = Join-Path $root '..\out'
+}
 
+if (-not (Test-Path $Source)) { throw "Нет папки сборки: $Source" }
 $exe = Join-Path $Source 'ErdtreeKeeper.exe'
 if (-not (Test-Path $exe)) { throw "В $Source нет ErdtreeKeeper.exe - сначала соберите проект" }
 
