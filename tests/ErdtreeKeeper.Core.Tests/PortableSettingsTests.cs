@@ -8,6 +8,12 @@ namespace ErdtreeKeeper.Core.Tests;
 /// </summary>
 public class PortableSettingsTests : IDisposable
 {
+    // Настоящие SteamID64 начинаются с 76561197960265729 - всё, что ниже, не
+    // принадлежит и не может принадлежать ни одному аккаунту. В тестах стоят
+    // именно такие: реальный номер из репозитория резолвится в чужой профиль.
+    private const string FakeSteamId = "76561190000000001";
+    private const string OtherFakeSteamId = "76561190000000002";
+
     private readonly string _folder = Path.Combine(
         Path.GetTempPath(), "erdtree-keeper-tests", Guid.NewGuid().ToString("N"));
 
@@ -23,8 +29,8 @@ public class PortableSettingsTests : IDisposable
     public void Settings_survive_a_restart()
     {
         var first = PortableSettings.LoadFrom(_folder);
-        first.Values.LastAccountId = "76561190000000001";
-        first.Values.Aliases["76561190000000001"] = "Krut";
+        first.Values.LastAccountId = FakeSteamId;
+        first.Values.Aliases[FakeSteamId] = "Основной";
         first.Values.AutoSnapshotEnabled = true;
         first.Values.AutoSnapshotMinutes = 12;
         first.Values.AutoSnapshotKeep = 42;
@@ -34,8 +40,8 @@ public class PortableSettingsTests : IDisposable
         // Так же, как при следующем запуске программы.
         var second = PortableSettings.LoadFrom(_folder);
 
-        Assert.Equal("76561190000000001", second.Values.LastAccountId);
-        Assert.Equal("Krut", second.Values.Aliases["76561190000000001"]);
+        Assert.Equal(FakeSteamId, second.Values.LastAccountId);
+        Assert.Equal("Основной", second.Values.Aliases[FakeSteamId]);
         Assert.True(second.Values.AutoSnapshotEnabled);
         Assert.Equal(12, second.Values.AutoSnapshotMinutes);
         Assert.Equal(42, second.Values.AutoSnapshotKeep);
@@ -82,18 +88,18 @@ public class PortableSettingsTests : IDisposable
     {
         // Файл от версии, где автосохранения ещё не настраивались.
         var path = Path.Combine(_folder, "erdtree-keeper.settings.json");
-        File.WriteAllText(path, """
+        File.WriteAllText(path, $$"""
             {
-              "LastAccountId": "76561190000000002",
-              "Aliases": { "76561190000000002": "второй" },
+              "LastAccountId": "{{OtherFakeSteamId}}",
+              "Aliases": { "{{OtherFakeSteamId}}": "второй" },
               "OnboardingDone": true
             }
             """);
 
         var settings = PortableSettings.LoadFrom(_folder);
 
-        Assert.Equal("76561190000000002", settings.Values.LastAccountId);
-        Assert.Equal("второй", settings.Values.Aliases["76561190000000002"]);
+        Assert.Equal(OtherFakeSteamId, settings.Values.LastAccountId);
+        Assert.Equal("второй", settings.Values.Aliases[OtherFakeSteamId]);
         Assert.Equal(5, settings.Values.AutoSnapshotMinutes);
         Assert.Equal(10, settings.Values.AutoSnapshotKeep);
     }
@@ -108,6 +114,43 @@ public class PortableSettingsTests : IDisposable
 
         Assert.Empty(Directory.GetFiles(_folder, "*.tmp"));
         Assert.Equal("ER0000.sl2", PortableSettings.LoadFrom(_folder).Values.LastFileName);
+    }
+
+    [Fact]
+    public void Falls_back_to_appdata_when_it_cannot_write_next_to_itself()
+    {
+        // Так выглядит установка в Program Files: писать рядом с собой нельзя.
+        // README обещает, что настройки тогда уезжают в AppData, а программа
+        // продолжает работать - проверяем именно это, а не только код возврата.
+        var unwritable = Path.Combine(_folder, "нет-такой-папки", "и-этой-тоже");
+
+        var settings = PortableSettings.LoadFrom(unwritable);
+
+        Assert.False(settings.IsPortable);
+        Assert.Contains("ErdtreeKeeper", settings.Path);
+        Assert.StartsWith(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            settings.Path);
+
+        // И сохранение туда действительно проходит.
+        // Пишем в настоящую пользовательскую папку, поэтому убираем за собой -
+        // и только если её до нас там не было.
+        var appFolder = Path.GetDirectoryName(settings.Path)!;
+        var existedBefore = Directory.Exists(appFolder);
+
+        try
+        {
+            settings.Values.LastFileName = "ER0000.sl2";
+            settings.Save();
+            Assert.Equal("ER0000.sl2", PortableSettings.LoadFrom(unwritable).Values.LastFileName);
+        }
+        finally
+        {
+            if (!existedBefore && Directory.Exists(appFolder))
+            {
+                try { Directory.Delete(appFolder, recursive: true); } catch (IOException) { }
+            }
+        }
     }
 
     [Fact]
