@@ -3,6 +3,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using ErdtreeKeeper.Core;
 using ErdtreeKeeper.ViewModels;
 
 namespace ErdtreeKeeper.Views;
@@ -19,13 +20,16 @@ public partial class MainWindow : Window
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
 
+    private bool _wired;
+
     /// <summary>
     /// Модель не знает про окна: диалоги она вызывает через эти делегаты.
     /// Так её логику можно проверить без запуска интерфейса.
     /// </summary>
     private void Wire()
     {
-        if (ViewModel is not { } vm) return;
+        if (ViewModel is not { } vm || _wired) return;
+        _wired = true;
 
         vm.ConfirmAsync = (title, message, confirmText) =>
             Dialogs.ConfirmAsync(this, title, message, confirmText);

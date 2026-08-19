@@ -26,6 +26,10 @@
         <SolidColorBrush x:Key="AccentBrightBrush" Color="#E3BE4B" />
         <SolidColorBrush x:Key="AccentDimBrush" Color="#6B571A" />
         <SolidColorBrush x:Key="AccentWashBrush" Color="#1F1B10" />
+        <!-- Выбранная строка списка. Заметно светлее обычной: игрок должен
+             видеть, какой файл он собирается удалить или вернуть в игру. -->
+        <SolidColorBrush x:Key="SelectionBrush" Color="#332A12" />
+        <SolidColorBrush x:Key="SelectionHoverBrush" Color="#3D3216" />
 
         <!-- Состояния -->
         <SolidColorBrush x:Key="FreshBrush" Color="#8FBF5A" />

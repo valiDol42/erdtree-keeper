@@ -49,7 +49,9 @@ static void Shoot(string outputDir, int width, int height)
     Console.WriteLine($"   папка автосохранений: {auto.ListFolder}");
     Console.WriteLine($"   найдено файлов: {auto.Snapshots.Count}");
     var autoWindow = new MainWindow { DataContext = auto, Width = width, Height = height };
-    autoWindow.Opened += (_, _) => auto.SelectedSnapshot = auto.Snapshots.FirstOrDefault();
+    // Выбор теперь принадлежит модели - задаём его прямо, без обращения к списку.
+    foreach (var row in auto.Snapshots.Take(2)) row.IsSelected = true;
+    Console.WriteLine($"   {auto.SelectionSummary}; кнопка: {auto.DeleteLabel}");
     Capture(autoWindow, "07-автосохранения.png", outputDir);
 
     // Сортировка по имени: тот же список в другом порядке.
@@ -104,9 +106,10 @@ static string SampleReport() => string.Join(Environment.NewLine,
     "Итог: повреждённых блоков 1.",
 ]);
 
-static void Capture(Window window, string name, string outputDir)
+static void Capture(Window window, string name, string outputDir, Action<Window>? afterShow = null)
 {
     window.Show();
+    afterShow?.Invoke(window);
 
     // Даём разметке и привязкам отработать перед снимком.
     for (var i = 0; i < 8; i++)

@@ -47,7 +47,7 @@ public sealed class MainViewModel : ViewModelBase
         RefreshCommand = new AsyncRelayCommand(RefreshEverythingAsync);
         CreateSnapshotCommand = new AsyncRelayCommand(CreateSnapshotAsync, () => CanCreateSnapshot);
         RestoreCommand = new AsyncRelayCommand(RestoreAsync, () => SelectedSnapshot is not null);
-        DeleteCommand = new AsyncRelayCommand(DeleteSnapshotAsync, () => SelectedSnapshot is not null);
+        DeleteCommand = new AsyncRelayCommand(DeleteSnapshotAsync, () => SelectedRows.Count > 0);
         RenameCommand = new AsyncRelayCommand(RenameSnapshotAsync, () => SelectedSnapshot is not null);
         CheckIntegrityCommand = new AsyncRelayCommand(CheckIntegrityAsync, () => SelectedSaveFile is not null);
         AnalyzeCommand = new AsyncRelayCommand(AnalyzeAsync, () => SelectedSaveFile is not null);
@@ -56,6 +56,8 @@ public sealed class MainViewModel : ViewModelBase
         SortByNameCommand = new RelayCommand(() => SortBy(SnapshotSort.Name));
         SortByDateCommand = new RelayCommand(() => SortBy(SnapshotSort.Created));
         RenameAccountCommand = new AsyncRelayCommand(RenameAccountAsync, () => SelectedAccount is not null);
+        SelectAllCommand = new RelayCommand(() => SetAllSelected(true), () => Snapshots.Count > 0);
+        ClearSelectionCommand = new RelayCommand(() => SetAllSelected(false), () => SelectedRows.Count > 0);
         OpenSnapshotFolderCommand = new RelayCommand(() => OpenInExplorer(ListFolder));
         OpenGameFolderCommand = new RelayCommand(() => OpenInExplorer(SelectedAccount?.Account.Path));
         ExportLogCommand = new AsyncRelayCommand(ExportLogAsync);
@@ -91,7 +93,7 @@ public sealed class MainViewModel : ViewModelBase
 
     public ObservableCollection<AccountItem> Accounts { get; } = [];
     public ObservableCollection<SaveFile> SaveFiles { get; } = [];
-    public ObservableCollection<Snapshot> Snapshots { get; } = [];
+    public ObservableCollection<SnapshotRow> Snapshots { get; } = [];
 
     private AccountItem? _selectedAccount;
     public AccountItem? SelectedAccount
@@ -130,18 +132,58 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    private Snapshot? _selectedSnapshot;
-    public Snapshot? SelectedSnapshot
+    /// <summary>
+    /// Что выбрано. Признак живёт в самой строке, поэтому переживает
+    /// обновление списка и не зависит от внутренней модели выбора Avalonia.
+    /// </summary>
+    public List<SnapshotRow> SelectedRows => [.. Snapshots.Where(r => r.IsSelected)];
+
+    /// <summary>Единственный выбранный - для операций над одним файлом.</summary>
+    public SnapshotRow? SelectedSnapshot
     {
-        get => _selectedSnapshot;
-        set
+        get
         {
-            if (!Set(ref _selectedSnapshot, value)) return;
-            RestoreCommand.RaiseCanExecuteChanged();
-            DeleteCommand.RaiseCanExecuteChanged();
-            RenameCommand.RaiseCanExecuteChanged();
+            var selected = SelectedRows;
+            return selected.Count == 1 ? selected[0] : null;
         }
     }
+
+    /// <summary>Строка сообщила, что её выбрали или сняли выбор.</summary>
+    private void OnRowSelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedRows));
+        OnPropertyChanged(nameof(SelectedSnapshot));
+        OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(DeleteLabel));
+
+        RestoreCommand.RaiseCanExecuteChanged();
+        DeleteCommand.RaiseCanExecuteChanged();
+        RenameCommand.RaiseCanExecuteChanged();
+        ClearSelectionCommand.RaiseCanExecuteChanged();
+    }
+
+    private void SetAllSelected(bool selected)
+    {
+        foreach (var row in Snapshots) row.IsSelected = selected;
+    }
+
+    /// <summary>Сколько файлов затронет следующая операция.</summary>
+    public string SelectionSummary
+    {
+        get
+        {
+            var count = SelectedRows.Count;
+            return count switch
+            {
+                0 => Snapshots.Count == 0 ? "" : "ничего не выбрано",
+                1 => $"выбран 1 файл из {Snapshots.Count}",
+                _ => $"выбрано {count} {Plural(count, "файл", "файла", "файлов")} из {Snapshots.Count}",
+            };
+        }
+    }
+
+    /// <summary>На кнопке удаления видно, сколько файлов уйдёт.</summary>
+    public string DeleteLabel => SelectedRows.Count > 1 ? $"Удалить ({SelectedRows.Count})" : "Удалить";
 
     private string _snapshotFolder = "";
     public string SnapshotFolder
@@ -484,6 +526,8 @@ public sealed class MainViewModel : ViewModelBase
     public AsyncRelayCommand AnalyzeCommand { get; }
     public AsyncRelayCommand PickFolderCommand { get; }
     public AsyncRelayCommand PickAutoFolderCommand { get; }
+    public RelayCommand SelectAllCommand { get; }
+    public RelayCommand ClearSelectionCommand { get; }
     public RelayCommand SortByNameCommand { get; }
     public RelayCommand SortByDateCommand { get; }
     public AsyncRelayCommand RenameAccountCommand { get; }
@@ -565,16 +609,28 @@ public sealed class MainViewModel : ViewModelBase
 
     public void RefreshSnapshots()
     {
-        var wanted = SelectedSnapshot?.Name;
+        // Строки пересоздаются, поэтому выбор возвращаем по именам: иначе он
+        // молча пропадал бы после каждого обновления списка.
+        var wanted = SelectedRows.Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        foreach (var row in Snapshots) row.PropertyChanged -= OnRowPropertyChanged;
         Snapshots.Clear();
+
         foreach (var snapshot in ApplySort(_snapshotService.List(ListFolder)))
         {
-            Snapshots.Add(snapshot);
+            var row = new SnapshotRow(snapshot) { IsSelected = wanted.Contains(snapshot.Name) };
+            row.PropertyChanged += OnRowPropertyChanged;
+            Snapshots.Add(row);
         }
 
-        SelectedSnapshot = Snapshots.FirstOrDefault(s => s.Name == wanted);
+        OnRowSelectionChanged();
         OnPropertyChanged(nameof(SnapshotPreview));
+        SelectAllCommand.RaiseCanExecuteChanged();
+    }
+
+    private void OnRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SnapshotRow.IsSelected)) OnRowSelectionChanged();
     }
 
     /// <summary>Читает сейв и показывает, кто где стоит.</summary>
@@ -758,19 +814,53 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Удаляет все выбранные файлы.
+    ///
+    /// В подтверждении перечисляются имена, а не только количество: удаление
+    /// необратимо, и "удалить 7 файлов" не даёт шанса заметить, что в выборку
+    /// попало лишнее.
+    /// </summary>
     private async Task DeleteSnapshotAsync()
     {
-        if (SelectedSnapshot is null || ConfirmAsync is null) return;
+        if (SelectedRows.Count == 0 || ConfirmAsync is null) return;
+
+        var doomed = SelectedRows;
+
+        const int shown = 12;
+        var names = string.Join(NewLine, doomed.Take(shown).Select(s => "  " + s.Name));
+        if (doomed.Count > shown) names += NewLine + $"  ... и ещё {doomed.Count - shown}";
+
+        var title = doomed.Count == 1
+            ? "Удалить снимок?"
+            : $"Удалить {doomed.Count} {Plural(doomed.Count, "снимок", "снимка", "снимков")}?";
 
         var confirmed = await ConfirmAsync(
-            "Удалить снимок?",
-            $"{SelectedSnapshot.Name}\n\nФайл будет удалён с диска безвозвратно.",
-            "Удалить");
-        if (!confirmed) return;
+            title,
+            names + NewLine + NewLine + "Файлы будут удалены с диска безвозвратно.",
+            doomed.Count == 1 ? "Удалить" : $"Удалить {doomed.Count}");
+        if (!confirmed) { Say("Отменено", "TextSecondaryBrush"); return; }
 
-        var result = _snapshotService.Delete(SelectedSnapshot.Path);
-        Say(result.Message, result.Success ? "TextSecondaryBrush" : "DangerBrush");
-        if (result.Success) RefreshSnapshots();
+        var removed = 0;
+        var failed = new List<string>();
+
+        foreach (var snapshot in doomed)
+        {
+            if (_snapshotService.Delete(snapshot.Path).Success) removed++;
+            else failed.Add(snapshot.Name);
+        }
+
+        RefreshSnapshots();
+
+        if (failed.Count == 0)
+        {
+            Say(removed == 1 ? "Снимок удалён" : $"Удалено файлов: {removed}", "TextSecondaryBrush");
+        }
+        else
+        {
+            Say($"Удалено {removed}, не удалось удалить {failed.Count}: {failed[0]}", "DangerBrush");
+        }
+
         await Task.CompletedTask;
     }
 
@@ -995,6 +1085,9 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     // ─── Мелочи ─────────────────────────────────────────────────────────
+
+    /// <summary>Перенос строки для текстов диалогов.</summary>
+    private static string NewLine => Environment.NewLine;
 
     private void UpdateCreateAvailability() => CreateSnapshotCommand.RaiseCanExecuteChanged();
 

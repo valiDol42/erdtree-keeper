@@ -276,15 +276,36 @@
                                 </Grid>
 
                                 <Panel Grid.Row="1">
-                                <ListBox ItemsSource="{Binding Snapshots}"
-                                         SelectedItem="{Binding SelectedSnapshot}">
+                                <!-- Multiple,Toggle: щелчок добавляет и снимает
+                                     выбор без Ctrl - иначе массовые операции
+                                     доступны только тем, кто знает про Ctrl. -->
+                                <ListBox Name="SnapshotList"
+                                         ItemsSource="{Binding Snapshots}"
+                                         SelectionMode="Multiple,Toggle">
+                                    <ListBox.Styles>
+                                        <!-- Выбор принадлежит строке, а не списку:
+                                             так он переживает обновление и виден
+                                             модели без обращения к элементам управления. -->
+                                        <Style Selector="ListBoxItem" x:DataType="vm:SnapshotRow">
+                                            <Setter Property="IsSelected"
+                                                    Value="{Binding IsSelected, Mode=TwoWay}" />
+                                        </Style>
+                                    </ListBox.Styles>
                                     <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="core:Snapshot">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                        <DataTemplate x:DataType="vm:SnapshotRow">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                                <Border Grid.Column="0" Classes="tick" VerticalAlignment="Center">
+                                                    <Path Classes="tickmark" Fill="#17130A"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Data="M1,4 L3.4,6.6 L9,0.6 L10.4,2 L3.4,9.4 L-0.4,5.4 Z" />
+                                                </Border>
+
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                           Classes="snapshot-name"
                                                            FontSize="13" TextTrimming="CharacterEllipsis"
                                                            VerticalAlignment="Center" />
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14">
                                                     <TextBlock Text="{Binding SizeText}" Classes="muted"
                                                                VerticalAlignment="Center" />
                                                     <TextBlock Text="{Binding Created, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"
@@ -309,13 +330,30 @@
                             </Grid>
                         </Border>
 
-                        <Grid Grid.Row="3" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,12,0,0">
-                            <Button Grid.Column="0" Content="Переименовать" Command="{Binding RenameCommand}" />
-                            <Button Grid.Column="1" Content="Удалить" Command="{Binding DeleteCommand}" />
-                            <!-- Необратимое действие стоит поодаль от остальных -->
-                            <Button Grid.Column="3" Classes="danger" Content="Восстановить в игру"
-                                    Command="{Binding RestoreCommand}" />
-                        </Grid>
+                        <StackPanel Grid.Row="3" Spacing="10" Margin="0,12,0,0">
+                            <Grid ColumnDefinitions="Auto,Auto,*">
+                                <Button Grid.Column="0" Classes="chip" Content="Выделить всё"
+                                        Margin="0,0,6,0" Command="{Binding SelectAllCommand}" />
+                                <Button Grid.Column="1" Classes="chip" Content="Снять выделение"
+                                        Command="{Binding ClearSelectionCommand}" />
+                                <!-- Сколько файлов затронет следующая операция -->
+                                <TextBlock Grid.Column="2" Text="{Binding SelectionSummary}"
+                                           Classes="muted" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                <Button Grid.Column="0" Content="Переименовать"
+                                        ToolTip.Tip="Доступно, когда выбран ровно один файл"
+                                        Command="{Binding RenameCommand}" />
+                                <Button Grid.Column="1" Content="{Binding DeleteLabel}"
+                                        Command="{Binding DeleteCommand}" />
+                                <!-- Необратимое действие стоит поодаль от остальных -->
+                                <Button Grid.Column="3" Classes="danger" Content="Восстановить в игру"
+                                        ToolTip.Tip="Доступно, когда выбран ровно один файл"
+                                        Command="{Binding RestoreCommand}" />
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
