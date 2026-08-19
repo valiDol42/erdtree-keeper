@@ -3,13 +3,70 @@ using System.Text;
 namespace ErdtreeKeeper.Core;
 
 /// <summary>Персонаж в слоте сохранения.</summary>
+/// <summary>Восемь характеристик персонажа в порядке, в котором их показывает игра.</summary>
+public sealed record CharacterStats(
+    int Vigor,
+    int Mind,
+    int Endurance,
+    int Strength,
+    int Dexterity,
+    int Intelligence,
+    int Faith,
+    int Arcane)
+{
+    public int Sum => Vigor + Mind + Endurance + Strength + Dexterity + Intelligence + Faith + Arcane;
+
+    /// <summary>Пары "название - значение" для карточки игрока.</summary>
+    public IEnumerable<(string Name, int Value)> All =>
+    [
+        ("Здоровье", Vigor),
+        ("Внимание", Mind),
+        ("Выносливость", Endurance),
+        ("Сила", Strength),
+        ("Ловкость", Dexterity),
+        ("Интеллект", Intelligence),
+        ("Вера", Faith),
+        ("Мистицизм", Arcane),
+    ];
+}
+
 public sealed record CharacterSlot(
     int Index,
     string Name,
     int Level,
-    int ClassId)
+    int ClassId,
+    CharacterStats Stats,
+    int MaxHp,
+    int MaxFp,
+    int MaxStamina,
+    long Runes,
+    long RuneMemory)
 {
     public string ClassName => SaveParser.ClassNames.TryGetValue(ClassId, out var n) ? n : $"Класс {ClassId}";
+
+    /// <summary>Сколько времени в игре. Берётся из блока профиля.</summary>
+    public int PlayedSeconds { get; init; }
+
+    public string PlayedText
+    {
+        get
+        {
+            if (PlayedSeconds <= 0) return "неизвестно";
+            var span = TimeSpan.FromSeconds(PlayedSeconds);
+            return span.TotalHours >= 1
+                ? $"{(int)span.TotalHours} ч {span.Minutes} мин"
+                : $"{span.Minutes} мин";
+        }
+    }
+
+    /// <summary>
+    /// Уровень, посчитанный из характеристик.
+    ///
+    /// Игра выводит уровень из суммы вложенных очков, поэтому расхождение с
+    /// прочитанным уровнем означало бы, что разбор структуры съехал.
+    /// </summary>
+    public int LevelFromStats =>
+        SaveParser.StartingLevel(ClassId) + Stats.Sum - SaveParser.BaseStatSum(ClassId);
 }
 
 /// <summary>Разобранный идентификатор карты.</summary>
@@ -60,6 +117,30 @@ public static class SaveParser
         [9] = "Бедняга",
     };
 
+    /// <summary>
+    /// Стартовые характеристики классов: восемь значений и уровень.
+    /// Нужны, чтобы сверить прочитанный уровень с суммой характеристик.
+    /// </summary>
+    private static readonly Dictionary<int, int[]> ClassBaseStats = new()
+    {
+        [0] = [15, 10, 11, 14, 13, 9, 9, 7, 9],
+        [1] = [11, 12, 11, 10, 16, 10, 8, 9, 8],
+        [2] = [14, 9, 12, 16, 9, 7, 8, 11, 7],
+        [3] = [10, 11, 10, 9, 13, 9, 8, 14, 5],
+        [4] = [9, 15, 9, 8, 12, 16, 7, 9, 6],
+        [5] = [10, 14, 8, 11, 10, 7, 16, 10, 7],
+        [6] = [12, 11, 13, 12, 15, 9, 8, 8, 9],
+        [7] = [11, 12, 11, 11, 14, 14, 6, 9, 9],
+        [8] = [10, 13, 10, 12, 12, 9, 14, 9, 10],
+        [9] = [10, 10, 10, 10, 10, 10, 10, 10, 1],
+    };
+
+    public static int StartingLevel(int classId) =>
+        ClassBaseStats.TryGetValue(classId, out var v) ? v[8] : 0;
+
+    public static int BaseStatSum(int classId) =>
+        ClassBaseStats.TryGetValue(classId, out var v) ? v.Take(8).Sum() : 0;
+
     private const int GaItemCount = 0x1400;
     private const int CommonInventoryCount = 0xa80;
     private const int KeyInventoryCount = 0x180;
@@ -80,7 +161,66 @@ public static class SaveParser
             if (slot is not null) slots.Add(slot);
         }
 
-        return slots;
+        return [.. slots.Select(s => s with { PlayedSeconds = ReadPlayedSeconds(file, s) })];
+    }
+
+    // Смещения внутри блока персонажа в сводке профиля.
+    private const int ProfileNameOffset = 0x0a;
+    private const int ProfileLevelOffset = 0x2c;
+    private const int ProfilePlayedOffset = 0x30;
+    private const int ProfileBlockSize = 0x34;
+
+    /// <summary>
+    /// Время игры лежит не в слоте, а в сводке профиля, и смещение блока
+    /// заранее неизвестно. Ищем блок, у которого совпали имя и уровень: два
+    /// совпадения подряд случайными быть не могут.
+    /// </summary>
+    private static int ReadPlayedSeconds(byte[] file, CharacterSlot slot)
+    {
+        var start = (int)Sl2File.ProfileOffset + Sl2File.ChecksumSize;
+        var limit = Math.Min(start + Sl2File.ProfileDataSize, file.Length) - ProfileBlockSize;
+
+        var best = 0;
+
+        for (var at = start; at < limit; at += 2)
+        {
+            try
+            {
+                var level = BitConverter.ToUInt32(file, at + ProfileLevelOffset);
+                if (level != (uint)slot.Level) continue;
+
+                var name = ReadUtf16(file, at + ProfileNameOffset, 16);
+                if (name != slot.Name) continue;
+
+                var played = BitConverter.ToUInt32(file, at + ProfilePlayedOffset);
+                if (played > int.MaxValue) continue;
+
+                // Класс подтверждает находку окончательно.
+                if (file[at + 1] == slot.ClassId) return (int)played;
+                best = (int)played;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                break;
+            }
+        }
+
+        return best;
+    }
+
+    private static string ReadUtf16(byte[] data, int offset, int maxChars)
+    {
+        var sb = new StringBuilder(maxChars);
+        for (var i = 0; i < maxChars; i++)
+        {
+            var at = offset + i * 2;
+            if (at + 1 >= data.Length) break;
+            var code = BitConverter.ToUInt16(data, at);
+            if (code == 0) break;
+            sb.Append((char)code);
+        }
+
+        return sb.ToString();
     }
 
     private static CharacterSlot? ReadSlotMetadata(byte[] file, int slotIndex)
@@ -98,18 +238,30 @@ public static class SaveParser
             SkipGaItems(ref r);
 
             r.Skip(4 + 4);                       // _0x4, _0x4_1
-            r.Skip(4 + 4 + 4);                   // health
-            r.Skip(4 + 4 + 4);                   // fp
-            r.Skip(4);
-            r.Skip(4 + 4 + 4);                   // sp
-            r.Skip(4);
-            r.Skip(8 * 4);                       // восемь характеристик
+
+            r.Skip(4);                           // текущее здоровье
+            var maxHp = (int)r.U32();
+            r.Skip(4);                           // базовое максимальное здоровье
+
+            r.Skip(4);                           // текущая мана
+            var maxFp = (int)r.U32();
+            r.Skip(4 + 4);                       // базовая максимальная мана + _0x4_2
+
+            r.Skip(4);                           // текущая выносливость
+            var maxStamina = (int)r.U32();
+            r.Skip(4 + 4);                       // базовая максимальная + _0x4_3
+
+            var stats = new CharacterStats(
+                (int)r.U32(), (int)r.U32(), (int)r.U32(), (int)r.U32(),
+                (int)r.U32(), (int)r.U32(), (int)r.U32(), (int)r.U32());
+
             r.Skip(4 + 4 + 4);
 
             var level = (int)r.U32();
             if (level < 1 || level > MaxLevel) return null;
 
-            r.Skip(4 + 4);                       // souls, soulsmemory
+            var runes = r.U32();
+            var runeMemory = r.U32();
             r.Skip(0x28);
 
             var name = r.Utf16(16);
@@ -120,7 +272,9 @@ public static class SaveParser
             r.Skip(1);                           // gender
             var classId = r.U8();
 
-            return new CharacterSlot(slotIndex, name, level, classId);
+            return new CharacterSlot(
+                slotIndex, name, level, classId, stats,
+                maxHp, maxFp, maxStamina, runes, runeMemory);
         }
         catch (ArgumentOutOfRangeException)
         {

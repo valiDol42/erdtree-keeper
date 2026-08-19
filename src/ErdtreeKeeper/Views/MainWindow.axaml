@@ -134,7 +134,7 @@
                                         Background="{Binding FreshnessWash}"
                                         BorderBrush="{Binding FreshnessBrush}"
                                         BorderThickness="1" Padding="12">
-                                    <StackPanel Spacing="5">
+                                    <StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Ellipse Width="8" Height="8" VerticalAlignment="Center"
                                                      Fill="{Binding FreshnessBrush}" />
@@ -142,19 +142,26 @@
                                                        FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{Binding FreshnessBrush}" />
                                         </StackPanel>
-                                        <TextBlock Text="{Binding FreshnessHint}" Classes="secondary"
-                                                   IsVisible="{Binding FreshnessHint,
-                                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                    </StackPanel>
+</StackPanel>
                                 </Border>
 
-                                <Border Classes="inset">
-                                    <StackPanel Spacing="6">
-                                        <TextBlock Text="{Binding CharacterLine}" Classes="body" />
-                                        <TextBlock Text="{Binding PlaceLine}" Classes="secondary"
+                                <!-- Блок кликается целиком и открывает карточку
+                                     игрока: всё, что удалось прочитать из сейва. -->
+                                <Button Classes="block" IsEnabled="{Binding HasContext}"
+                                        ToolTip.Tip="Открыть карточку игрока"
+                                        Click="OnShowPlayerCard">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="6">
+                                            <TextBlock Text="{Binding CharacterLine}" Classes="body" />
+                                            <TextBlock Text="{Binding PlaceLine}" Classes="secondary"
+                                                       IsVisible="{Binding HasContext}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="›" FontSize="20"
+                                                   VerticalAlignment="Center" Margin="10,0,0,0"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    IsVisible="{Binding HasContext}" />
-                                    </StackPanel>
-                                </Border>
+                                    </Grid>
+                                </Button>
 
                                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                                     <Button Grid.Column="0" Content="Прочитать сейв"

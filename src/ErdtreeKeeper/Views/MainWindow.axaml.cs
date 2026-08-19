@@ -93,6 +93,12 @@ public partial class MainWindow : Window
         return picked.Count > 0 ? picked[0].Path.LocalPath : null;
     }
 
+    private async void OnShowPlayerCard(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SaveContext is not { } context) return;
+        await Dialogs.CreatePlayerCardWindow(context).ShowDialog(this);
+    }
+
     private void OnOpenSite(object? sender, RoutedEventArgs e) =>
         ExternalLinks.Open(ExternalLinks.Site);
 

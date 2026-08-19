@@ -124,3 +124,57 @@ public class SaveParsingTests
         Assert.Contains(MapPoints.Graces, p => !string.IsNullOrWhiteSpace(p.Ru));
     }
 }
+
+public class CharacterCardTests
+{
+    private static string? Fixture(string name)
+    {
+        var dir = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_FIXTURES");
+        if (string.IsNullOrWhiteSpace(dir)) return null;
+        var path = Path.Combine(dir, name);
+        return File.Exists(path) ? path : null;
+    }
+
+    [Fact]
+    public async Task Level_matches_the_stats_that_produced_it()
+    {
+        // Игра выводит уровень из вложенных очков: стартовый уровень плюс
+        // разница между текущими и стартовыми характеристиками. Совпадение
+        // означает, что восемь чисел прочитаны там, где надо, - при съехавшем
+        // на четыре байта разборе сумма разошлась бы сразу.
+        var path = Fixture("#1 Scadutree Fragment_before.sl2");
+        Assert.SkipWhen(path is null, "нет файла - задайте ERDTREE_KEEPER_FIXTURES");
+
+        var bytes = await Sl2File.ReadAllBytesSharedAsync(path!, TestContext.Current.CancellationToken);
+        var slots = SaveParser.ReadSlots(bytes);
+
+        Assert.NotEmpty(slots);
+        foreach (var slot in slots)
+        {
+            Assert.Equal(slot.Level, slot.LevelFromStats);
+        }
+    }
+
+    [Fact]
+    public async Task Vitals_and_runes_look_like_a_real_character()
+    {
+        var path = Fixture("#1 Scadutree Fragment_before.sl2");
+        Assert.SkipWhen(path is null, "нет файла - задайте ERDTREE_KEEPER_FIXTURES");
+
+        var bytes = await Sl2File.ReadAllBytesSharedAsync(path!, TestContext.Current.CancellationToken);
+        var slot = SaveParser.ReadSlots(bytes).OrderByDescending(s => s.Level).First();
+
+        // Границы игры: характеристика от 1 до 99, здоровье и выносливость
+        // положительные. Мусор из соседнего поля в них бы не уложился.
+        foreach (var (name, value) in slot.Stats.All)
+        {
+            Assert.True(value is >= 1 and <= 99, $"{name} = {value} вне диапазона 1..99");
+        }
+
+        Assert.True(slot.MaxHp is > 0 and < 10000, $"здоровье {slot.MaxHp}");
+        Assert.True(slot.MaxFp is > 0 and < 10000, $"мана {slot.MaxFp}");
+        Assert.True(slot.MaxStamina is > 0 and < 10000, $"выносливость {slot.MaxStamina}");
+        Assert.True(slot.Runes >= 0);
+        Assert.True(slot.RuneMemory >= slot.Runes || slot.RuneMemory >= 0);
+    }
+}

@@ -421,9 +421,6 @@ public sealed class MainViewModel : ViewModelBase
     private string _freshnessText = "Сейв не выбран";
     public string FreshnessText { get => _freshnessText; private set => Set(ref _freshnessText, value); }
 
-    private string _freshnessHint = "";
-    public string FreshnessHint { get => _freshnessHint; private set => Set(ref _freshnessHint, value); }
-
     public IBrush FreshnessBrush => FreshnessLevel switch
     {
         Freshness.Fresh => Brush("FreshBrush"),
@@ -977,7 +974,6 @@ public sealed class MainViewModel : ViewModelBase
         {
             FreshnessLevel = Freshness.Unknown;
             FreshnessText = "Сейв не выбран";
-            FreshnessHint = "";
             return;
         }
 
@@ -994,17 +990,14 @@ public sealed class MainViewModel : ViewModelBase
         if (age.TotalMinutes < 2)
         {
             FreshnessLevel = Freshness.Fresh;
-            FreshnessHint = "Сейв свежий - копия отразит то, что происходит в игре.";
         }
         else if (age.TotalMinutes < 15)
         {
             FreshnessLevel = Freshness.Stale;
-            FreshnessHint = "Игра давно не записывала сейв. Сядьте у благодати, чтобы она сохранилась.";
         }
         else
         {
             FreshnessLevel = Freshness.Old;
-            FreshnessHint = "Сейв старый. Скорее всего, игра ещё не сохранялась в этой сессии.";
         }
     }
 

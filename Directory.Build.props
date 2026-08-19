@@ -10,7 +10,7 @@
       PATCH - починили, ничего не добавив.
   -->
   <PropertyGroup>
-    <VersionPrefix>1.1.0</VersionPrefix>
+    <VersionPrefix>1.2.0</VersionPrefix>
     <Company>Erdtree Compass</Company>
     <Authors>Krut42</Authors>
     <Copyright>Copyright (c) 2026 Krut42</Copyright>

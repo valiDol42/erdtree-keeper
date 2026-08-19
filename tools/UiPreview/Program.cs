@@ -31,8 +31,24 @@ static void Shoot(string outputDir, int width, int height)
     var model = new MainViewModel();
     model.DismissOnboardingCommand.Execute(null);
     model.RefreshAccounts();
+    model.AnalyzeCommand.Execute(null);
+    for (var i = 0; i < 30 && model.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
     var main = new MainWindow { DataContext = model, Width = width, Height = height };
     Capture(main, "02-главный-экран.png", outputDir);
+
+    // Карточка игрока - на настоящем сейве.
+    if (model.SaveContext is { } ctx)
+    {
+        var c = ctx.Character;
+        Console.WriteLine($"   {c.Name}: ур.{c.Level} (из характеристик {c.LevelFromStats}), "
+                          + $"HP {c.MaxHp}, FP {c.MaxFp}, вын. {c.MaxStamina}, "
+                          + $"рун {c.Runes}, в игре {c.PlayedText}");
+        Capture(Dialogs.CreatePlayerCardWindow(ctx), "10-карточка-игрока.png", outputDir);
+    }
+    else
+    {
+        Console.WriteLine("   сейв не прочитан - карточка не снята");
+    }
 
     // Диалоги. Пути настоящие - в них видно, что ничего не зашито жёстко.
     Capture(

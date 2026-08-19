@@ -163,6 +163,28 @@
         <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
     </Style>
 
+    <!-- Блок-кнопка: выглядит как врезка, но нажимается -->
+    <Style Selector="Button.block">
+        <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <Style Selector="Button.block:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
+    </Style>
+
+    <Style Selector="Button.block:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+    </Style>
+
     <!-- Ссылка наружу: открывается в браузере, поэтому и выглядит как ссылка -->
     <Style Selector="Button.link">
         <Setter Property="Background" Value="Transparent" />

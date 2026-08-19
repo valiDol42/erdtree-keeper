@@ -469,6 +469,191 @@ public static class Dialogs
         return grid;
     }
 
+
+    // ─── Карточка игрока ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Всё, что удалось прочитать о персонаже.
+    ///
+    /// Данные только из самого сейва - ни одного запроса наружу. Уровень здесь
+    /// же сверяется с суммой характеристик: если бы разбор структуры съехал,
+    /// это было бы видно прямо в окне.
+    /// </summary>
+    public static Window CreatePlayerCardWindow(Core.SaveContext context)
+    {
+        var close = Action("Закрыть", primary: true);
+        var slot = context.Character;
+
+        var body = new StackPanel
+        {
+            Spacing = 16,
+            Children =
+            {
+                Heading(slot.Name),
+                new TextBlock
+                {
+                    Text = $"{slot.Level} уровень  ·  {slot.ClassName}  ·  слот {slot.Index + 1}",
+                    Classes = { "body" },
+                    Foreground = Res<IBrush>("AccentBrightBrush"),
+                },
+
+                StatGrid(slot.Stats),
+
+                // Названия показателей отличаются от одноимённых характеристик:
+                // "Здоровье" - вложенные очки, "Очки здоровья" - что они дали.
+                Facts("ПОКАЗАТЕЛИ",
+                [
+                    ("Очки здоровья", Number(slot.MaxHp)),
+                    ("Очки фокуса", Number(slot.MaxFp)),
+                    ("Очки выносливости", Number(slot.MaxStamina)),
+                ]),
+
+                Facts("ПРОГРЕСС",
+                [
+                    ("Рун при себе", Number(slot.Runes)),
+                    ("Собрано рун всего", Number(slot.RuneMemory)),
+                    ("В игре", slot.PlayedText),
+                ]),
+
+                // Расхождение означало бы, что разбор структуры съехал. Молчать
+                // об этом нельзя: рядом стоят числа, на которые игрок смотрит.
+                slot.Level == slot.LevelFromStats
+                    ? new Panel()
+                    : Warning($"Уровень не сходится с характеристиками: в сейве {slot.Level}, "
+                              + $"по вложенным очкам {slot.LevelFromStats}. Числам выше верить нельзя."),
+
+                context.IsDlc
+                    ? Facts("ЗЕМЛИ ТЕНЕЙ",
+                    [
+                        ("Благословение Древа Теней", context.ScadutreeBlessing.ToString()),
+                        ("Благословение праха", context.SpiritAshBlessing.ToString()),
+                    ])
+                    : new Panel(),
+
+                Facts("ГДЕ СЕЙЧАС",
+                [
+                    ("Ближайшая благодать", context.Location is null
+                        ? "не определилась"
+                        : $"{context.Location.Ru} ({context.Location.Distance} м)"),
+                    ("Ближайший босс", context.Boss is null
+                        ? "рядом нет"
+                        : $"{context.Boss.Ru} ({context.Boss.Distance} м)"),
+                    ("Карта", context.MapId.Length == 0 ? "неизвестно" : context.MapId),
+                ]),
+
+                Buttons(close),
+            },
+        };
+
+        var window = Shell("Карточка игрока", 560, body);
+        close.Click += (_, _) => window.Close();
+        return window;
+    }
+
+    /// <summary>
+    /// Число с пробелом между разрядами.
+    ///
+    /// Стандартное форматирование дало бы запятые: у собранного файла включён
+    /// InvariantGlobalization, и правила локали до него не доходят.
+    /// </summary>
+    private static string Number(long value)
+    {
+        var format = (System.Globalization.NumberFormatInfo)
+            System.Globalization.CultureInfo.InvariantCulture.NumberFormat.Clone();
+        format.NumberGroupSeparator = " ";
+        format.NumberDecimalDigits = 0;
+        return value.ToString("N", format);
+    }
+
+    private static Control Warning(string text) => new Border
+    {
+        Classes = { "inset" },
+        Background = Res<IBrush>("DangerWashBrush"),
+        BorderBrush = Res<IBrush>("DangerBrush"),
+        Child = new TextBlock
+        {
+            Text = text,
+            Classes = { "secondary" },
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = Res<IBrush>("DangerBrush"),
+        },
+    };
+
+    /// <summary>Восемь характеристик в две колонки.</summary>
+    private static Control StatGrid(Core.CharacterStats stats)
+    {
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"),
+        };
+
+        var index = 0;
+        foreach (var (name, value) in stats.All)
+        {
+            var row = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                Margin = new Thickness(0, 0, index % 2 == 0 ? 14 : 0, 8),
+            };
+
+            var label = new TextBlock
+            {
+                Text = name,
+                Classes = { "secondary" },
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+
+            var number = new TextBlock
+            {
+                Text = value.ToString(),
+                Classes = { "title" },
+                Foreground = Res<IBrush>("TextPrimaryBrush"),
+            };
+
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(number, 1);
+            row.Children.Add(label);
+            row.Children.Add(number);
+
+            Grid.SetColumn(row, index % 2);
+            Grid.SetRow(row, index / 2);
+            grid.Children.Add(row);
+            index++;
+        }
+
+        return new Border { Classes = { "inset" }, Child = grid };
+    }
+
+    /// <summary>Блок "название - значение" под общим заголовком.</summary>
+    private static Control Facts(string title, (string Name, string Value)[] rows)
+    {
+        var panel = new StackPanel { Spacing = 5 };
+        panel.Children.Add(new TextBlock { Text = title, Classes = { "section" } });
+
+        foreach (var (name, value) in rows)
+        {
+            var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+
+            var label = new TextBlock { Text = name, Classes = { "secondary" } };
+            var text = new TextBlock
+            {
+                Text = value,
+                Classes = { "body" },
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Right,
+            };
+
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(text, 1);
+            grid.Children.Add(label);
+            grid.Children.Add(text);
+            panel.Children.Add(grid);
+        }
+
+        return panel;
+    }
+
     // ─── О программе ────────────────────────────────────────────────────
 
     /// <summary>О программе: версия, пути и контрольная сумма самого файла.</summary>
