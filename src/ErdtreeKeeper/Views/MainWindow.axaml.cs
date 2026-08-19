@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
@@ -53,6 +54,45 @@ public partial class MainWindow : Window
 
             return file?.Path.LocalPath;
         };
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        FitToScreen();
+    }
+
+    /// <summary>
+    /// Ужимает окно под экран пользователя.
+    ///
+    /// Размер задан в логических единицах, а не в пикселях: на экране 1366x768
+    /// или при масштабе 150 процентов окно 1180x900 оказывается больше рабочей
+    /// области, и нижние кнопки уезжают под панель задач. Проверяем при
+    /// открытии и на том мониторе, где окно действительно оказалось.
+    /// </summary>
+    private void FitToScreen()
+    {
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        if (screen is null) return;
+
+        var scale = screen.Scaling <= 0 ? 1 : screen.Scaling;
+
+        // Небольшой отступ, чтобы окно не упиралось в края рабочей области.
+        var maxWidth = screen.WorkingArea.Width / scale - 24;
+        var maxHeight = screen.WorkingArea.Height / scale - 24;
+
+        var width = Math.Max(MinWidth, Math.Min(Width, maxWidth));
+        var height = Math.Max(MinHeight, Math.Min(Height, maxHeight));
+
+        if (Math.Abs(width - Width) < 1 && Math.Abs(height - Height) < 1) return;
+
+        Width = width;
+        Height = height;
+
+        // После изменения размера окно уже не по центру.
+        Position = new PixelPoint(
+            screen.WorkingArea.X + (int)((screen.WorkingArea.Width - width * scale) / 2),
+            screen.WorkingArea.Y + (int)((screen.WorkingArea.Height - height * scale) / 2));
     }
 
     protected override async void OnLoaded(RoutedEventArgs e)
