@@ -41,6 +41,9 @@ public sealed class RelayCommand(Action execute, Func<bool>? canExecute = null) 
 /// <summary>Асинхронная команда, которая сама не даёт запустить себя дважды.</summary>
 public sealed class AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null) : ICommand
 {
+    /// <summary>Сбой в команде. Подписчик показывает его пользователю.</summary>
+    public static event Action<Exception>? UnhandledError;
+
     private readonly Func<Task> _execute = execute;
     private readonly Func<bool>? _canExecute = canExecute;
     private bool _running;
@@ -58,6 +61,13 @@ public sealed class AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute
         try
         {
             await _execute();
+        }
+        catch (Exception ex)
+        {
+            // Это async void: необработанное исключение здесь закрывает окно
+            // без единого слова. Для программы, которую подозревают в вирусах,
+            // "нажал и всё пропало" - худший исход, поэтому сообщаем.
+            UnhandledError?.Invoke(ex);
         }
         finally
         {

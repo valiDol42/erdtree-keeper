@@ -88,6 +88,27 @@ public static partial class SnapshotNaming
         return name + extension;
     }
 
+    [GeneratedRegex(@"_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$", RegexOptions.IgnoreCase)]
+    private static partial Regex AutoNameStamp();
+
+    /// <summary>
+    /// Похоже ли имя на автоснимок, сделанный этой программой.
+    ///
+    /// По этому признаку ротация решает, что можно удалять. Без него она
+    /// сносила любые .sl2 в папке - включая отобранные вручную копии и живой
+    /// сейв игры, если папку автосохранений навели на папку игры.
+    /// </summary>
+    public static bool IsAutoName(string fileName)
+    {
+        foreach (var ext in GameSaves.SaveExtensions)
+        {
+            if (!fileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) continue;
+            return AutoNameStamp().IsMatch(fileName[..^ext.Length]);
+        }
+
+        return false;
+    }
+
     /// <summary>Имя для автоснимка: место и время, чтобы список читался сам по себе.</summary>
     public static string AutoName(SaveContext? context, DateTime at, string extension = ".sl2")
     {

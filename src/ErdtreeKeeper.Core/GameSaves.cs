@@ -91,6 +91,33 @@ public static class GameSaves
             .ToList();
     }
 
+    /// <summary>
+    /// Лежит ли путь внутри папки сохранений игры.
+    ///
+    /// Снимки и автосохранения туда складывать нельзя: ротация начнёт удалять
+    /// файлы игры, а снимок с именем ER0000 перезапишет живой сейв в обход
+    /// восстановления - то есть в обход обязательной резервной копии.
+    /// </summary>
+    public static bool IsInsideGameFolder(string? path, string? root = null)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        try
+        {
+            var full = System.IO.Path.GetFullPath(path);
+            var gameRoot = System.IO.Path.GetFullPath(root ?? DefaultRoot);
+
+            return full.Equals(gameRoot, StringComparison.OrdinalIgnoreCase)
+                   || full.StartsWith(
+                       gameRoot.TrimEnd(System.IO.Path.DirectorySeparatorChar)
+                       + System.IO.Path.DirectorySeparatorChar,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+        catch (PathTooLongException) { return false; }
+    }
+
     /// <summary>Запущена ли игра. Восстанавливать сейв поверх работающей игры бесполезно.</summary>
     public static bool IsGameRunning()
     {

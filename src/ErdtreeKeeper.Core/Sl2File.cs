@@ -92,7 +92,29 @@ public static class Sl2File
         IReadOnlyList<BlockIntegrity> Blocks)
     {
         public int BadCount => Blocks.Count(b => !b.Ok);
-        public bool AllOk => FileRecognised && BadCount == 0;
+
+        /// <summary>
+        /// Все ли блоки вообще нашлись.
+        ///
+        /// У обрезанного файла цикл прерывается и список остаётся пустым или
+        /// неполным. Без этой проверки "повреждённых нет" означало бы "нечего
+        /// было проверять", и файл нулевой длины считался бы целым.
+        /// </summary>
+        public bool Complete => Blocks.Count == ChecksumBlockCount;
+
+        public bool AllOk => FileRecognised && Complete && BadCount == 0;
+
+        /// <summary>Почему файл не годится. Пусто, если годится.</summary>
+        public string? Problem
+        {
+            get
+            {
+                if (!FileRecognised) return "это не файл сохранения Elden Ring: нет подписи BND4";
+                if (!Complete) return $"файл обрезан: найдено блоков {Blocks.Count} из {ChecksumBlockCount}";
+                if (BadCount > 0) return $"повреждённых блоков: {BadCount}";
+                return null;
+            }
+        }
     }
 
     /// <summary>

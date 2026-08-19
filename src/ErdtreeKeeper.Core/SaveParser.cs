@@ -276,7 +276,11 @@ public static class SaveParser
                 slotIndex, name, level, classId, stats,
                 maxHp, maxFp, maxStamina, runes, runeMemory);
         }
-        catch (ArgumentOutOfRangeException)
+        // BitConverter бросает ArgumentException, если до конца буфера
+        // осталось меньше нужного, и ArgumentOutOfRangeException при выходе за
+        // границу. Смещения задаёт сам файл, поэтому подложенный сейв достаёт
+        // оба варианта - ловим базовый тип.
+        catch (ArgumentException)
         {
             return null;
         }
@@ -386,7 +390,11 @@ public static class SaveParser
                 Math.Min((int)scadutree, 20),
                 Math.Min((int)spiritAsh, 10));
         }
-        catch (ArgumentOutOfRangeException)
+        // BitConverter бросает ArgumentException, если до конца буфера
+        // осталось меньше нужного, и ArgumentOutOfRangeException при выходе за
+        // границу. Смещения задаёт сам файл, поэтому подложенный сейв достаёт
+        // оба варианта - ловим базовый тип.
+        catch (ArgumentException)
         {
             return null;
         }

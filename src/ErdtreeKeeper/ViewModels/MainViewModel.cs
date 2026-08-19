@@ -900,6 +900,8 @@ public sealed class MainViewModel : ViewModelBase
         var picked = await PickFolderAsync("Куда складывать снимки", SnapshotFolder);
         if (string.IsNullOrWhiteSpace(picked)) return;
 
+        if (Reject(picked)) return;
+
         SnapshotFolder = picked;
         Log.Info("Папка снимков изменена", picked);
     }
@@ -911,8 +913,26 @@ public sealed class MainViewModel : ViewModelBase
         var picked = await PickFolderAsync("Куда складывать автосохранения", AutoFolder);
         if (string.IsNullOrWhiteSpace(picked)) return;
 
+        if (Reject(picked)) return;
+
         AutoFolder = picked;
         Log.Info("Папка автосохранений изменена", picked);
+    }
+
+    /// <summary>
+    /// Не даёт складывать снимки в папку игры.
+    ///
+    /// Оттуда ротация удаляла бы файлы игры, а снимок с именем ER0000
+    /// перезаписал бы живой сейв без резервной копии - в обход всего, что
+    /// обещано в разделе "Что программа делает".
+    /// </summary>
+    private bool Reject(string folder)
+    {
+        if (!GameSaves.IsInsideGameFolder(folder)) return false;
+
+        Log.Warn("Выбрана папка игры - отклонено", folder);
+        Say("Это папка сохранений игры. Выберите другую - иначе снимки смешаются с сейвами", "DangerBrush");
+        return true;
     }
 
     private async Task ExportLogAsync()

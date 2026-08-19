@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using ErdtreeKeeper.Core;
 using ErdtreeKeeper.ViewModels;
 
@@ -31,6 +32,16 @@ public partial class MainWindow : Window
     {
         if (ViewModel is not { } vm || _wired) return;
         _wired = true;
+
+        // Сбой в любой команде не должен закрывать окно молча.
+        AsyncRelayCommand.UnhandledError += ex => Dispatcher.UIThread.Post(async () =>
+        {
+            vm.Log.Error($"Сбой: {ex.GetType().Name}: {ex.Message}");
+            await Dialogs.ReportAsync(this, "Что-то пошло не так",
+                "Действие не выполнено. Файлы не тронуты." + Environment.NewLine + Environment.NewLine
+                + ex.GetType().Name + ": " + ex.Message + Environment.NewLine + Environment.NewLine
+                + (ex.StackTrace ?? ""));
+        });
 
         vm.ConfirmAsync = (title, message, confirmText) =>
             Dialogs.ConfirmAsync(this, title, message, confirmText);

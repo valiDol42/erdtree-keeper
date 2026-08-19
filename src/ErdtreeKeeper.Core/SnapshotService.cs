@@ -163,9 +163,14 @@ public sealed class SnapshotService(ActivityLog log)
     /// <summary>
     /// Возвращает снимок в игру.
     ///
-    /// Текущий игровой файл сначала уезжает в резервную копию - всегда, без
-    /// вопросов и без возможности отключить. Это единственное место, где
-    /// программа пишет в папку игры.
+    /// Порядок жёсткий и не настраивается:
+    /// 1. снимок проверяется целиком - негодный дальше не идёт;
+    /// 2. текущий сейв уезжает в резервную копию, и она сверяется по SHA-256;
+    /// 3. новый файл пишется рядом под временным именем, сверяется и только
+    ///    потом занимает место игрового.
+    ///
+    /// Третий шаг важен: прямая запись 29 МБ поверх игрового файла сначала
+    /// обнуляет его, и обрыв на середине оставил бы обрубок вместо сохранения.
     /// </summary>
     public async Task<FileOperationResult> RestoreAsync(
         string snapshotPath,
@@ -180,15 +185,18 @@ public sealed class SnapshotService(ActivityLog log)
             var bytes = await Sl2File.ReadAllBytesSharedAsync(snapshotPath, ct).ConfigureAwait(false);
             var integrity = Sl2File.CheckIntegrity(bytes);
 
-            // Возвращать заведомо битый файл в игру бессмысленно: она его не
-            // примет и напишет "Save data is corrupt".
-            if (integrity.FileRecognised && !integrity.AllOk)
+            // Любая неисправность - отказ. Раньше проверка срабатывала только
+            // для распознанных файлов, и пустой или обрезанный снимок проходил
+            // насквозь, затирая игровой сейв.
+            if (!integrity.AllOk)
             {
-                _log.Error($"Снимок повреждён, блоков с ошибкой: {integrity.BadCount}", snapshotPath);
+                _log.Error($"Снимок не годится: {integrity.Problem}", snapshotPath);
                 return new FileOperationResult(false,
-                    $"Снимок повреждён (блоков с ошибкой: {integrity.BadCount}) - игра его не загрузит",
+                    $"Снимок не годится - {integrity.Problem}. Восстановление отменено.",
                     snapshotPath, null, integrity);
             }
+
+            var sourceHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
 
             string backupPath = "(файла не было)";
             if (File.Exists(gameSavePath))
@@ -204,18 +212,43 @@ public sealed class SnapshotService(ActivityLog log)
 
                 var current = await Sl2File.ReadAllBytesSharedAsync(gameSavePath, ct).ConfigureAwait(false);
                 await File.WriteAllBytesAsync(backupPath, current, ct).ConfigureAwait(false);
+
+                // Резервная копия, которая не совпала с оригиналом, бесполезна -
+                // и выяснится это ровно тогда, когда она понадобится.
+                var backupWritten = await File.ReadAllBytesAsync(backupPath, ct).ConfigureAwait(false);
+                if (!SHA256.HashData(backupWritten).SequenceEqual(SHA256.HashData(current)))
+                {
+                    TryDelete(backupPath);
+                    _log.Error("Резервная копия не совпала с оригиналом, восстановление отменено", backupPath);
+                    return new FileOperationResult(false,
+                        "Не удалось сделать надёжную резервную копию текущего сейва - восстановление отменено");
+                }
+
                 _log.Write("Текущий сейв сохранён в резервную копию", backupPath);
             }
 
-            var sourceHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
-            await File.WriteAllBytesAsync(gameSavePath, bytes, ct).ConfigureAwait(false);
-
-            var written = await Sl2File.ReadAllBytesSharedAsync(gameSavePath, ct).ConfigureAwait(false);
-            if (Convert.ToHexStringLower(SHA256.HashData(written)) != sourceHash)
+            // Пишем рядом и подменяем одним движением: игровой файл до самого
+            // конца остаётся прежним.
+            var staging = gameSavePath + ".new";
+            try
             {
-                _log.Error("Записанный файл не совпал со снимком", gameSavePath);
-                return new FileOperationResult(false,
-                    "Записанный файл не совпал со снимком - восстановите резервную копию");
+                await File.WriteAllBytesAsync(staging, bytes, ct).ConfigureAwait(false);
+
+                var staged = await File.ReadAllBytesAsync(staging, ct).ConfigureAwait(false);
+                if (Convert.ToHexStringLower(SHA256.HashData(staged)) != sourceHash)
+                {
+                    TryDelete(staging);
+                    _log.Error("Подготовленный файл не совпал со снимком, игровой сейв не тронут", staging);
+                    return new FileOperationResult(false,
+                        $"Запись не удалась, игровой сейв остался прежним. Резервная копия: {System.IO.Path.GetFileName(backupPath)}");
+                }
+
+                File.Move(staging, gameSavePath, overwrite: true);
+            }
+            catch
+            {
+                TryDelete(staging);
+                throw;
             }
 
             _log.Write("Снимок восстановлен в игру", gameSavePath);
@@ -237,18 +270,30 @@ public sealed class SnapshotService(ActivityLog log)
         }
     }
 
-    /// <summary>Удаляет старые автоснимки сверх лимита. Ручные снимки не трогает.</summary>
+
+    /// <summary>
+    /// Удаляет старые автосохранения сверх лимита.
+    ///
+    /// Под удаление попадают ТОЛЬКО файлы с меткой времени в имени, то есть
+    /// сделанные этой программой автоматически. Раньше удалялось всё, что
+    /// похоже на сейв: если папку автосохранений навести на папку снимков или
+    /// на папку игры, ротация сносила ручные копии и живой ER0000.sl2.
+    /// </summary>
     public int Rotate(string autoFolder, int keep)
     {
-        var snapshots = List(autoFolder);
-        if (snapshots.Count <= keep) return 0;
+        if (keep < 1) return 0;
+
+        var ours = List(autoFolder)
+            .Where(s => SnapshotNaming.IsAutoName(s.Name))
+            .ToList();
+        if (ours.Count <= keep) return 0;
 
         var removed = 0;
-        foreach (var snapshot in snapshots.Skip(keep))
+        foreach (var snapshot in ours.Skip(keep))
         {
             if (!TryDelete(snapshot.Path)) continue;
             removed++;
-            _log.Deleted("Старый автоснимок удалён", snapshot.Path);
+            _log.Deleted("Старое автосохранение удалено", snapshot.Path);
         }
 
         return removed;
