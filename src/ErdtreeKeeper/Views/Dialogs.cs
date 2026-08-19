@@ -345,6 +345,130 @@ public static class Dialogs
         },
     };
 
+
+    // ─── Настройки автосохранения ───────────────────────────────────────
+
+    /// <summary>
+    /// Настройки автосохранения отдельным окном.
+    ///
+    /// На главном экране они занимали место, которого при невысоком окне не
+    /// хватало, и строка с папкой уезжала за край. Настраивают их один раз, а
+    /// смотрят на главный экран постоянно - поэтому здесь.
+    /// </summary>
+    public static Window CreateAutoSaveWindow(
+        int minutes, int keep, string folder,
+        Action<int> onMinutes, Action<int> onKeep, Func<Task<string?>> pickFolder)
+    {
+        var close = Action("Готово", primary: true);
+
+        var minutesBox = new NumericUpDown
+        {
+            Minimum = 1, Maximum = 120, Increment = 1,
+            FormatString = "0", Value = minutes, Width = 120,
+        };
+        minutesBox.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v) onMinutes((int)v);
+        };
+
+        var keepBox = new NumericUpDown
+        {
+            Minimum = 1, Maximum = 200, Increment = 1,
+            FormatString = "0", Value = keep, Width = 120,
+        };
+        keepBox.ValueChanged += (_, e) =>
+        {
+            if (e.NewValue is { } v) onKeep((int)v);
+        };
+
+        var folderBox = new TextBox { Text = folder, IsReadOnly = true };
+        var browse = new Button { Content = "Обзор...", Classes = { "chip" } };
+        browse.Click += async (_, _) =>
+        {
+            var picked = await pickFolder();
+            if (!string.IsNullOrWhiteSpace(picked)) folderBox.Text = picked;
+        };
+
+        var body = new StackPanel
+        {
+            Spacing = 18,
+            Children =
+            {
+                Heading("Автосохранение"),
+
+                Body("Снимок делается по факту записи сейва игрой, а не по расписанию: "
+                     + "копия, снятая в момент записи, была бы обрывком. Указанные минуты - "
+                     + "нижняя граница частоты, чаще этого снимок не сработает."),
+
+                Labelled("Не чаще одного снимка в", minutesBox, "мин"),
+                Labelled("Хранить последних", keepBox, "шт"),
+
+                new StackPanel
+                {
+                    Spacing = 6,
+                    Children =
+                    {
+                        new TextBlock { Text = "ПАПКА ДЛЯ АВТОСОХРАНЕНИЙ", Classes = { "section" } },
+                        new Grid
+                        {
+                            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                            Children = { folderBox, browse },
+                        },
+                        new TextBlock
+                        {
+                            Text = "Можно указать другой диск - тогда копии переживут "
+                                   + "переустановку системы.",
+                            Classes = { "muted" },
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                    },
+                },
+
+                Buttons(close),
+            },
+        };
+
+        Grid.SetColumn(browse, 1);
+        browse.Margin = new Thickness(8, 0, 0, 0);
+
+        var window = Shell("Автосохранение", 560, body);
+        close.Click += (_, _) => window.Close();
+        return window;
+    }
+
+    /// <summary>Подпись, поле и единица измерения в одной строке.</summary>
+    private static Control Labelled(string label, Control control, string suffix)
+    {
+        var text = new TextBlock
+        {
+            Text = label,
+            Classes = { "body" },
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Res<IBrush>("TextSecondaryBrush"),
+        };
+
+        var unit = new TextBlock
+        {
+            Text = suffix,
+            Classes = { "secondary" },
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+
+        // Колонку задаём каждому явно: без этого все дети попадают в первую и
+        // накладываются друг на друга.
+        Grid.SetColumn(text, 0);
+        Grid.SetColumn(control, 1);
+        Grid.SetColumn(unit, 2);
+
+        grid.Children.Add(text);
+        grid.Children.Add(control);
+        grid.Children.Add(unit);
+        return grid;
+    }
+
     // ─── О программе ────────────────────────────────────────────────────
 
     /// <summary>О программе: версия, пути и контрольная сумма самого файла.</summary>

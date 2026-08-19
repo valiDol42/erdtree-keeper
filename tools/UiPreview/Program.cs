@@ -44,6 +44,9 @@ static void Shoot(string outputDir, int width, int height)
     auto.DismissOnboardingCommand.Execute(null);
     auto.RefreshAccounts();
     auto.AutoSnapshotEnabled = true;
+    // Длинное имя: на нём строка предпросмотра переносилась и выталкивала
+    // папку автосохранений за нижний край.
+    auto.SnapshotName = "DLC_#3 Прах славного духа - Abandoned Ailing Village_after";
     auto.SnapshotSourceIndex = 1;
     Console.WriteLine($"   интервал: {auto.AutoMinutes} мин, хранить: {auto.AutoKeep}");
     Console.WriteLine($"   папка автосохранений: {auto.ListFolder}");
@@ -72,6 +75,11 @@ static void Shoot(string outputDir, int width, int height)
         if (toggle is not null) toggle.IsChecked = true;
     };
     Capture(logWindow, "03-журнал-открыт.png", outputDir);
+
+    Capture(
+        Dialogs.CreateAutoSaveWindow(auto.AutoMinutes, auto.AutoKeep, auto.AutoFolder,
+            _ => { }, _ => { }, () => Task.FromResult<string?>(null)),
+        "09-автосохранение-настройки.png", outputDir);
 
     Capture(
         Dialogs.CreateAboutWindow(model.SettingsPath, model.IsPortable, model.SettingsFileState),

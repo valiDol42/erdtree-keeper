@@ -5,7 +5,7 @@
         x:Class="ErdtreeKeeper.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Erdtree Keeper"
-        Width="1180" Height="980"
+        Width="1180" Height="900"
         MinWidth="980" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackground}"
@@ -89,7 +89,7 @@
 
                 <!-- ── Левая колонка ── -->
                 <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16">
+                    <StackPanel Spacing="12">
 
                         <!-- Откуда -->
                         <Border Classes="card">
@@ -192,47 +192,27 @@
                                             Command="{Binding ClearNameCommand}" />
                                 </WrapPanel>
 
-                                <TextBlock Text="{Binding SnapshotPreview}" Classes="muted" />
+                                <!-- Одна строка с многоточием: длинное имя иначе переносится и
+                                     выталкивает настройки автосохранения за край окна. -->
+                                <TextBlock Text="{Binding SnapshotPreview}" Classes="muted"
+                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding SnapshotPreview}" />
 
                                 <Button Classes="primary" Content="Сделать снимок"
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding CreateSnapshotCommand}" />
 
-                                <!-- Настройки показываются только при включённом
-                                     автосохранении: выключенному они не нужны. -->
-                                <StackPanel Spacing="10">
-                                    <CheckBox Content="Автосохранение"
+                                <!-- Настройки живут в отдельном окне: на главном
+                                     экране им не хватало высоты, и строка с папкой
+                                     уезжала за край при невысоком окне. -->
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <CheckBox Grid.Column="0" Content="Автосохранение"
                                               ToolTip.Tip="Снимок делается после того, как игра запишет сейв. Смотреть и восстанавливать их можно, переключив список справа на «Автосохранения»"
                                               IsChecked="{Binding AutoSnapshotEnabled}" />
-
-                                    <StackPanel Spacing="8" IsVisible="{Binding AutoSnapshotEnabled}">
-                                        <!-- Интервал - нижняя граница частоты, а не
-                                             расписание: снимок всё равно ждёт записи игрой. -->
-                                        <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="7">
-                                            <TextBlock Grid.Column="0" Text="раз в" Classes="secondary"
-                                                       VerticalAlignment="Center" />
-                                            <NumericUpDown Grid.Column="1" MinWidth="112"
-                                                           Minimum="1" Maximum="120" Increment="1"
-                                                           FormatString="0"
-                                                           ToolTip.Tip="Нижняя граница частоты: чаще этого автосохранение не сработает"
-                                                           Value="{Binding AutoMinutesValue}" />
-                                            <TextBlock Grid.Column="2" Text="мин, хранить" Classes="secondary"
-                                                       VerticalAlignment="Center" />
-                                            <NumericUpDown Grid.Column="3" MinWidth="112"
-                                                           Minimum="1" Maximum="200" Increment="1"
-                                                           FormatString="0"
-                                                           ToolTip.Tip="Автосохранения сверх этого числа удаляются, начиная со старых"
-                                                           Value="{Binding AutoKeepValue}" />
-                                        </Grid>
-
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Grid.Column="0" Text="{Binding AutoFolder}"
-                                                     ToolTip.Tip="{Binding AutoFolder}" />
-                                            <Button Grid.Column="1" Classes="chip" Content="Обзор..."
-                                                    Command="{Binding PickAutoFolderCommand}" />
-                                        </Grid>
-                                    </StackPanel>
-                                </StackPanel>
+                                    <Button Grid.Column="1" Classes="chip" Content="Настроить..."
+                                            IsEnabled="{Binding AutoSnapshotEnabled}"
+                                            Click="OnShowAutoSaveSettings" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

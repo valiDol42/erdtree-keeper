@@ -40,19 +40,7 @@ public partial class MainWindow : Window
         vm.ShowReportAsync = (title, text) =>
             Dialogs.ReportAsync(this, title, text);
 
-        vm.PickFolderAsync = async (title, start) =>
-        {
-            var options = new FolderPickerOpenOptions { Title = title, AllowMultiple = false };
-
-            if (!string.IsNullOrWhiteSpace(start) && Directory.Exists(start))
-            {
-                options.SuggestedStartLocation =
-                    await StorageProvider.TryGetFolderFromPathAsync(start);
-            }
-
-            var picked = await StorageProvider.OpenFolderPickerAsync(options);
-            return picked.Count > 0 ? picked[0].Path.LocalPath : null;
-        };
+        vm.PickFolderAsync = PickFolderAsync;
 
         vm.SaveFileAsync = async (title, suggested) =>
         {
@@ -71,6 +59,38 @@ public partial class MainWindow : Window
     {
         base.OnLoaded(e);
         if (ViewModel is { } vm) await vm.LoadAsync();
+    }
+
+    private async void OnShowAutoSaveSettings(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm) return;
+
+        var window = Dialogs.CreateAutoSaveWindow(
+            vm.AutoMinutes, vm.AutoKeep, vm.AutoFolder,
+            minutes => vm.AutoMinutes = minutes,
+            keep => vm.AutoKeep = keep,
+            async () =>
+            {
+                var picked = await PickFolderAsync("Куда складывать автосохранения", vm.AutoFolder);
+                if (!string.IsNullOrWhiteSpace(picked)) vm.AutoFolder = picked;
+                return vm.AutoFolder;
+            });
+
+        await window.ShowDialog(this);
+    }
+
+    /// <summary>Выбор папки. Общий для модели и для окна настроек автосохранения.</summary>
+    private async Task<string?> PickFolderAsync(string title, string? start)
+    {
+        var options = new FolderPickerOpenOptions { Title = title, AllowMultiple = false };
+
+        if (!string.IsNullOrWhiteSpace(start) && Directory.Exists(start))
+        {
+            options.SuggestedStartLocation = await StorageProvider.TryGetFolderFromPathAsync(start);
+        }
+
+        var picked = await StorageProvider.OpenFolderPickerAsync(options);
+        return picked.Count > 0 ? picked[0].Path.LocalPath : null;
     }
 
     private void OnOpenSite(object? sender, RoutedEventArgs e) =>

@@ -8,7 +8,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{DynamicResource RadiusLarge}" />
-        <Setter Property="Padding" Value="15" />
+        <Setter Property="Padding" Value="13" />
     </Style>
 
     <Style Selector="Border.inset">
