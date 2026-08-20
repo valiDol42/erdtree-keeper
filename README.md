@@ -260,6 +260,10 @@ DLC. Ни один из них не проверяет целостность с
 Elden Ring и Shadow of the Erdtree - товарные знаки FromSoftware и Bandai Namco. Проект не
 связан с ними и не содержит файлов игры.
 
+## История изменений
+
+Что и почему менялось от версии к версии: [CHANGELOG.md](CHANGELOG.md).
+
 ## Лицензия
 
 MIT - см. [LICENSE](LICENSE).

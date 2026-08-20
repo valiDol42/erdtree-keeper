@@ -248,7 +248,7 @@ character name, level, map, nearest site of grace and distance to it down to the
 ## Other tools
 
 A survey of what already exists in this niche, and why Erdtree Keeper is built the way it
-is, lives in [docs/КОНКУРЕНТЫ.md](docs/КОНКУРЕНТЫ.md) (in Russian).
+is, lives in [docs/COMPETITORS.md](docs/COMPETITORS.md).
 
 In short: the tools that gathered an audience have not been updated since 2024 - that is,
 since the DLC came out. None of them checks save integrity before restoring, none puts the
@@ -261,6 +261,10 @@ The reference of sites of grace and boss arenas comes from the
 
 Elden Ring and Shadow of the Erdtree are trademarks of FromSoftware and Bandai Namco. This
 project is not affiliated with them and contains no game files.
+
+## Changelog
+
+What changed and why, version by version: [CHANGELOG.en.md](CHANGELOG.en.md).
 
 ## Licence
 
