@@ -67,6 +67,10 @@ public class PortableSettingsTests : IDisposable
     [Fact]
     public void Fresh_install_gets_the_documented_defaults()
     {
+        File.WriteAllText(
+            Path.Combine(_folder, "erdtree-keeper.settings.json"),
+            "{\"Language\":\"Ru\"}");
+
         var settings = PortableSettings.LoadFrom(_folder);
 
         // Значения обещаны в README, поэтому проверяются здесь.
@@ -74,6 +78,26 @@ public class PortableSettingsTests : IDisposable
         Assert.Equal(10, settings.Values.AutoSnapshotKeep);
         Assert.False(settings.Values.AutoSnapshotEnabled);
         Assert.Equal(Path.Combine(_folder, "Снимки"), settings.Values.SnapshotFolder);
+    }
+
+    /// <summary>
+    /// Имя папки по умолчанию берётся из перевода, а язык - из этих же
+    /// настроек. Порядок важен: раньше папка успевала получить русское имя до
+    /// того, как язык вообще прочитан, и англоязычный игрок получал "Снимки".
+    /// </summary>
+    [Theory]
+    [InlineData("Ru", "Снимки")]
+    [InlineData("En", "Snapshots")]
+    public void Default_snapshot_folder_follows_the_saved_language(string language, string folder)
+    {
+        File.WriteAllText(
+            Path.Combine(_folder, "erdtree-keeper.settings.json"),
+            $"{{\"Language\":\"{language}\"}}");
+
+        var settings = PortableSettings.LoadFrom(_folder);
+
+        Assert.Equal(Path.Combine(_folder, folder), settings.Values.SnapshotFolder);
+        Assert.Equal(language, Loc.Current.Language.ToString());
     }
 
     [Fact]

@@ -38,12 +38,9 @@ public sealed class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
+        // Язык ставится при чтении настроек: от него зависят и строки окна, и
+        // имя папки по умолчанию.
         _settings = PortableSettings.Load();
-
-        // Язык: сохранённый выбор, иначе - язык системы.
-        Loc.Current.Language = Enum.TryParse<Lang>(_settings.Values.Language, out var saved)
-            ? saved
-            : Loc.DetectFromSystem();
 
         Log = new ActivityLog();
         _snapshotService = new SnapshotService(Log);

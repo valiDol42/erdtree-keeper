@@ -18,9 +18,18 @@ var height = args.Length > 2 && int.TryParse(args[2], out var h) ? h : 840;
 // текст длиннее русского и разметку ломает первым. Модель окна ставит язык
 // из настроек в своём конструкторе, поэтому запрошенный язык применяется
 // после создания каждой модели - см. NewModel().
-Environment.SetEnvironmentVariable(
-    "ERDTREE_KEEPER_UI_LANG",
-    args.Length > 3 && args[3].Equals("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ru");
+var wanted = args.Length > 3 && args[3].Equals("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ru";
+Environment.SetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG", wanted);
+
+// Язык кладётся в настройки: модель окна читает его в конструкторе и от него
+// же зависят имена папок по умолчанию. Иначе на английском снимке мелькала бы
+// русская папка "Снимки".
+var seed = PortableSettings.Load();
+seed.Values.Language = wanted == "en" ? nameof(Lang.En) : nameof(Lang.Ru);
+seed.Values.SnapshotFolder = null;
+seed.Values.AutoSnapshotFolder = null;
+seed.Values.LastSnapshotName = null;
+seed.Save();
 
 Directory.CreateDirectory(outputDir);
 
@@ -75,7 +84,9 @@ static void Shoot(string outputDir, int width, int height)
     auto.AutoSnapshotEnabled = true;
     // Длинное имя: на нём строка предпросмотра переносилась и выталкивала
     // папку автосохранений за нижний край.
-    auto.SnapshotName = "DLC_#3 Прах славного духа - Abandoned Ailing Village_after";
+    auto.SnapshotName = Loc.Current.IsEnglish
+        ? "DLC_#3 Revered Spirit Ash - Abandoned Ailing Village_after"
+        : "DLC_#3 Прах славного духа - Abandoned Ailing Village_after";
     auto.SnapshotSourceIndex = 1;
     Console.WriteLine($"   интервал: {auto.AutoMinutes} мин, хранить: {auto.AutoKeep}");
     Console.WriteLine($"   папка автосохранений: {auto.ListFolder}");

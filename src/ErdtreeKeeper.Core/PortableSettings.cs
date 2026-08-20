@@ -124,6 +124,14 @@ public sealed class PortableSettings
                      ?? (portable ? null : ReadOrDefault(portablePath))
                      ?? new Settings();
 
+        // Язык применяется здесь, а не в модели окна: от него зависит имя
+        // папки по умолчанию, которое подставляется строкой ниже. Сохранённый
+        // выбор важнее языка системы - иначе переключатель в окне сбрасывался
+        // бы при каждом запуске.
+        Loc.Current.Language = Enum.TryParse<Lang>(values.Language, out var saved)
+            ? saved
+            : Loc.DetectFromSystem();
+
         values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, Loc.Get("path.snapshots"));
 
         return new PortableSettings(path, values, portable);
