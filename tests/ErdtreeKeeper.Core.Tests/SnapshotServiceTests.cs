@@ -198,7 +198,7 @@ public class GameFolderGuardTests
 {
     [Theory]
     [InlineData(@"C:\game\EldenRing", @"C:\game\EldenRing", true)]
-    [InlineData(@"C:\game\EldenRing", @"C:\game\EldenRing\76561198000000000", true)]
+    [InlineData(@"C:\game\EldenRing", @"C:\game\EldenRing\76561190000000001", true)]
     [InlineData(@"C:\game\EldenRing", @"C:\game\eldenring\SUB", true)]
     [InlineData(@"C:\game\EldenRing", @"C:\game\EldenRingOther", false)]
     [InlineData(@"C:\game\EldenRing", @"D:\Снимки", false)]
