@@ -112,8 +112,8 @@ public static partial class SnapshotNaming
     /// <summary>Имя для автоснимка: место и время, чтобы список читался сам по себе.</summary>
     public static string AutoName(SaveContext? context, DateTime at, string extension = ".sl2")
     {
-        var place = Sanitize(context?.Location?.Ru ?? "автоснимок");
-        if (place.Length == 0) place = "автоснимок";
+        var place = Sanitize(context?.Location?.Display ?? Loc.Get("auto.fallbackName"));
+        if (place.Length == 0) place = Loc.Get("auto.fallbackName");
         if (context?.IsDlc == true) place = $"DLC_{place}";
 
         return $"{place}_{at:yyyy-MM-dd_HH-mm-ss}{extension}";

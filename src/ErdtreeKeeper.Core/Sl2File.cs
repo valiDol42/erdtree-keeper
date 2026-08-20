@@ -81,7 +81,7 @@ public static class Sl2File
     /// <summary>Результат проверки одного блока.</summary>
     public readonly record struct BlockIntegrity(int Index, bool IsProfile, bool Ok, string Stored, string Actual)
     {
-        public string Title => IsProfile ? "Профиль" : $"Слот {Index + 1}";
+        public string Title => IsProfile ? Loc.Get("block.profile") : Loc.Get("block.slot", Index + 1);
     }
 
     /// <summary>Итог проверки целостности файла.</summary>
@@ -109,9 +109,9 @@ public static class Sl2File
         {
             get
             {
-                if (!FileRecognised) return "это не файл сохранения Elden Ring: нет подписи BND4";
-                if (!Complete) return $"файл обрезан: найдено блоков {Blocks.Count} из {ChecksumBlockCount}";
-                if (BadCount > 0) return $"повреждённых блоков: {BadCount}";
+                if (!FileRecognised) return Loc.Get("problem.notEldenRing");
+                if (!Complete) return Loc.Get("problem.truncated", Blocks.Count, ChecksumBlockCount);
+                if (BadCount > 0) return Loc.Get("problem.damaged", BadCount);
                 return null;
             }
         }

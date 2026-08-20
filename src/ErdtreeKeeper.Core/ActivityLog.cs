@@ -21,12 +21,12 @@ public sealed record ActivityEntry(DateTime At, ActivityKind Kind, string Messag
 
     public string Tag => Kind switch
     {
-        ActivityKind.Read => "чтение",
-        ActivityKind.Write => "запись",
-        ActivityKind.Delete => "удаление",
-        ActivityKind.Warning => "внимание",
-        ActivityKind.Error => "ошибка",
-        _ => "инфо",
+        ActivityKind.Read => Loc.Get("log.read"),
+        ActivityKind.Write => Loc.Get("log.write"),
+        ActivityKind.Delete => Loc.Get("log.delete"),
+        ActivityKind.Warning => Loc.Get("log.warn"),
+        ActivityKind.Error => Loc.Get("log.error"),
+        _ => Loc.Get("log.info"),
     };
 }
 
@@ -67,8 +67,8 @@ public sealed class ActivityLog
     {
         var lines = new List<string>
         {
-            "Журнал операций Erdtree Keeper",
-            $"Выгружен: {DateTime.Now:dd.MM.yyyy HH:mm:ss}",
+            Loc.Get("log.exportTitle"),
+            Loc.Get("log.exportedAt", DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss")),
             "",
         };
 

@@ -19,14 +19,14 @@ public sealed record CharacterStats(
     /// <summary>Пары "название - значение" для карточки игрока.</summary>
     public IEnumerable<(string Name, int Value)> All =>
     [
-        ("Здоровье", Vigor),
-        ("Внимание", Mind),
-        ("Выносливость", Endurance),
-        ("Сила", Strength),
-        ("Ловкость", Dexterity),
-        ("Интеллект", Intelligence),
-        ("Вера", Faith),
-        ("Мистицизм", Arcane),
+        (Loc.Get("stat.vigor"), Vigor),
+        (Loc.Get("stat.mind"), Mind),
+        (Loc.Get("stat.endurance"), Endurance),
+        (Loc.Get("stat.strength"), Strength),
+        (Loc.Get("stat.dexterity"), Dexterity),
+        (Loc.Get("stat.intelligence"), Intelligence),
+        (Loc.Get("stat.faith"), Faith),
+        (Loc.Get("stat.arcane"), Arcane),
     ];
 }
 
@@ -42,7 +42,7 @@ public sealed record CharacterSlot(
     long Runes,
     long RuneMemory)
 {
-    public string ClassName => SaveParser.ClassNames.TryGetValue(ClassId, out var n) ? n : $"Класс {ClassId}";
+    public string ClassName => Loc.Get($"class.{ClassId}");
 
     /// <summary>Сколько времени в игре. Берётся из блока профиля.</summary>
     public int PlayedSeconds { get; init; }
@@ -51,11 +51,11 @@ public sealed record CharacterSlot(
     {
         get
         {
-            if (PlayedSeconds <= 0) return "неизвестно";
+            if (PlayedSeconds <= 0) return Loc.Get("card.unknown");
             var span = TimeSpan.FromSeconds(PlayedSeconds);
             return span.TotalHours >= 1
-                ? $"{(int)span.TotalHours} ч {span.Minutes} мин"
-                : $"{span.Minutes} мин";
+                ? $"{(int)span.TotalHours} {Loc.Get("time.hours")} {span.Minutes} {Loc.Get("auto.minutes")}"
+                : $"{span.Minutes} {Loc.Get("auto.minutes")}";
         }
     }
 
@@ -103,20 +103,6 @@ public sealed record SlotDetails(
 /// </summary>
 public static class SaveParser
 {
-    public static readonly IReadOnlyDictionary<int, string> ClassNames = new Dictionary<int, string>
-    {
-        [0] = "Бродяга",
-        [1] = "Воин",
-        [2] = "Герой",
-        [3] = "Разбойник",
-        [4] = "Астролог",
-        [5] = "Пророк",
-        [6] = "Самурай",
-        [7] = "Узник",
-        [8] = "Исповедник",
-        [9] = "Бедняга",
-    };
-
     /// <summary>
     /// Стартовые характеристики классов: восемь значений и уровень.
     /// Нужны, чтобы сверить прочитанный уровень с суммой характеристик.

@@ -24,7 +24,14 @@ public sealed class MapPointSet
 }
 
 /// <summary>Ближайшая точка и расстояние до неё в метрах.</summary>
-public sealed record NearestPoint(string Name, string Ru, int Distance, bool Dlc);
+public sealed record NearestPoint(string Name, string Ru, int Distance, bool Dlc)
+{
+    /// <summary>
+    /// Название на языке интерфейса. В справочнике есть оба, поэтому
+    /// английский игрок видит "Ellac River Downstream", а не транслитерацию.
+    /// </summary>
+    public string Display => Loc.Current.IsEnglish || string.IsNullOrWhiteSpace(Ru) ? Name : Ru;
+}
 
 [JsonSerializable(typeof(MapPointSet))]
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]

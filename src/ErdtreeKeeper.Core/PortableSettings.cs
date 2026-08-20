@@ -33,6 +33,9 @@ public sealed class Settings
     public int AutoSnapshotKeep { get; set; } = 10;
 
     public bool OnboardingDone { get; set; }
+
+    /// <summary>Выбранный язык. Пусто - берём из системы при первом запуске.</summary>
+    public string? Language { get; set; }
 }
 
 [JsonSerializable(typeof(Settings))]
@@ -88,11 +91,11 @@ public sealed class PortableSettings
         {
             var info = new FileInfo(Path);
             return info.Exists
-                ? $"файл есть: {info.Length} байт, изменён {info.LastWriteTime:dd.MM.yyyy HH:mm:ss}"
-                : "файла ещё нет - он появится, когда вы что-нибудь измените";
+                ? Loc.Get("file.exists", info.Length, info.LastWriteTime.ToString("dd.MM.yyyy HH:mm:ss"))
+                : Loc.Get("file.missing");
         }
-        catch (IOException ex) { return $"не удалось прочитать: {ex.Message}"; }
-        catch (UnauthorizedAccessException) { return "нет доступа к файлу"; }
+        catch (IOException ex) { return Loc.Get("file.unreadable", ex.Message); }
+        catch (UnauthorizedAccessException) { return Loc.Get("file.noAccess"); }
     }
 
     public static PortableSettings Load() => LoadFrom(AppFolder);
@@ -121,7 +124,7 @@ public sealed class PortableSettings
                      ?? (portable ? null : ReadOrDefault(portablePath))
                      ?? new Settings();
 
-        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, "Снимки");
+        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, Loc.Get("path.snapshots"));
 
         return new PortableSettings(path, values, portable);
     }

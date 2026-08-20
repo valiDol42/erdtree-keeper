@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
 using ErdtreeKeeper;
+using ErdtreeKeeper.Core;
 using ErdtreeKeeper.ViewModels;
 using ErdtreeKeeper.Views;
 
@@ -12,6 +13,14 @@ using ErdtreeKeeper.Views;
 var outputDir = args.Length > 0 ? args[0] : "ui-preview";
 var width = args.Length > 1 && int.TryParse(args[1], out var w) ? w : 1180;
 var height = args.Length > 2 && int.TryParse(args[2], out var h) ? h : 840;
+
+// Четвёртый аргумент - язык интерфейса: снимки нужны на обоих, английский
+// текст длиннее русского и разметку ломает первым. Модель окна ставит язык
+// из настроек в своём конструкторе, поэтому запрошенный язык применяется
+// после создания каждой модели - см. NewModel().
+Environment.SetEnvironmentVariable(
+    "ERDTREE_KEEPER_UI_LANG",
+    args.Length > 3 && args[3].Equals("en", StringComparison.OrdinalIgnoreCase) ? "en" : "ru");
 
 Directory.CreateDirectory(outputDir);
 
@@ -24,13 +33,16 @@ AppBuilder.Configure<App>()
 static void Shoot(string outputDir, int width, int height)
 {
     // Первый запуск: с приветственным экраном.
-    var first = new MainWindow { DataContext = new MainViewModel(), Width = width, Height = height };
+    var firstModel = NewModel();
+    UseFakeAccount(firstModel);
+    var first = new MainWindow { DataContext = firstModel, Width = width, Height = height };
     Capture(first, "01-первый-запуск.png", outputDir);
 
     // Обычный вид.
-    var model = new MainViewModel();
+    var model = NewModel();
     model.DismissOnboardingCommand.Execute(null);
     model.RefreshAccounts();
+    UseFakeAccount(model);
     model.AnalyzeCommand.Execute(null);
     for (var i = 0; i < 30 && model.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
     var main = new MainWindow { DataContext = model, Width = width, Height = height };
@@ -56,9 +68,10 @@ static void Shoot(string outputDir, int width, int height)
         "04-что-программа-делает.png", outputDir);
 
     // Список переключён на автосохранения, настройки раскрыты.
-    var auto = new MainViewModel();
+    var auto = NewModel();
     auto.DismissOnboardingCommand.Execute(null);
     auto.RefreshAccounts();
+    UseFakeAccount(auto);
     auto.AutoSnapshotEnabled = true;
     // Длинное имя: на нём строка предпросмотра переносилась и выталкивала
     // папку автосохранений за нижний край.
@@ -81,9 +94,10 @@ static void Shoot(string outputDir, int width, int height)
         "08-сортировка-по-имени.png", outputDir);
 
     // Журнал открыт: левая колонка не должна от этого сжиматься.
-    var withLog = new MainViewModel();
+    var withLog = NewModel();
     withLog.DismissOnboardingCommand.Execute(null);
     withLog.RefreshAccounts();
+    UseFakeAccount(withLog);
     var logWindow = new MainWindow { DataContext = withLog, Width = width, Height = height };
     logWindow.Opened += (_, _) =>
     {
@@ -111,6 +125,34 @@ static void Shoot(string outputDir, int width, int height)
         "06-длинный-текст.png", outputDir);
 
     Console.WriteLine($"Готово: {Path.GetFullPath(outputDir)}");
+}
+
+
+// Настоящий SteamID64 резолвится в публичный профиль, поэтому на снимках
+// экрана стоит вымышленный: он ниже диапазона существующих аккаунтов.
+/// <summary>Модель окна на запрошенном языке, а не на том, что в настройках.</summary>
+static MainViewModel NewModel()
+{
+    var model = new MainViewModel();
+    Loc.Current.Language =
+        Environment.GetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG") == "en" ? Lang.En : Lang.Ru;
+
+    // Первые записи журнала сделаны в конструкторе, на языке из настроек.
+    // В работе так и надо, а для снимка экрана они бы смешали два языка.
+    model.Log.Entries.Clear();
+    return model;
+}
+
+static void UseFakeAccount(MainViewModel model)
+{
+    var root = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_FAKE_SAVES");
+    if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return;
+
+    // Окно при открытии перечитывает аккаунты само, поэтому подменяется не
+    // список, а папка, в которой он ищется: внутри лежит вымышленный
+    // SteamID64 - настоящий номер из снимков экрана резолвится в живой профиль.
+    model.SavesRoot = root;
+    model.RefreshAccounts();
 }
 
 static string SampleReport() => string.Join(Environment.NewLine,

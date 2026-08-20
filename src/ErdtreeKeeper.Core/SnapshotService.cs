@@ -10,8 +10,8 @@ public sealed record Snapshot(string Name, string Path, long Length, DateTime Cr
     /// его размер должен читаться, а не превращаться в "0,0 МБ".
     /// </summary>
     public string SizeText => Length >= 1024 * 1024
-        ? $"{Length / 1024.0 / 1024.0:0.0} МБ"
-        : $"{Length / 1024.0:0} КБ";
+        ? $"{Length / 1024.0 / 1024.0:0.0} {Loc.Get("unit.mb")}"
+        : $"{Length / 1024.0:0} {Loc.Get("unit.kb")}";
 }
 
 /// <summary>Чем закончилась операция с файлом.</summary>
@@ -38,7 +38,7 @@ public sealed record FileOperationResult(
 public sealed class SnapshotService(ActivityLog log)
 {
     /// <summary>Подпапка с копиями, которые программа делает перед восстановлением.</summary>
-    public const string RestoreBackupFolder = "Перед восстановлением";
+    public static string RestoreBackupFolder => Loc.Get("path.restoreBackup");
 
     /// <summary>
     /// Подпапка для автосохранений по умолчанию. Латиницей: путь может уехать
@@ -88,15 +88,15 @@ public sealed class SnapshotService(ActivityLog log)
         CancellationToken ct = default)
     {
         if (!File.Exists(sourcePath))
-            return new FileOperationResult(false, "Файл сохранения не найден");
+            return new FileOperationResult(false, Loc.Get("op.sourceMissing"));
 
         var invalid = System.IO.Path.GetInvalidFileNameChars();
         if (fileName.IndexOfAny(invalid) >= 0)
-            return new FileOperationResult(false, "В имени файла есть недопустимые символы");
+            return new FileOperationResult(false, Loc.Get("op.badName"));
 
         var destination = System.IO.Path.Combine(targetFolder, fileName);
         if (File.Exists(destination) && !overwrite)
-            return new FileOperationResult(false, "Файл с таким именем уже есть", destination);
+            return new FileOperationResult(false, Loc.Get("op.nameTaken"), destination);
 
         try
         {
@@ -104,12 +104,12 @@ public sealed class SnapshotService(ActivityLog log)
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new FileOperationResult(false, $"Не удалось создать папку: {ex.Message}");
+            return new FileOperationResult(false, Loc.Get("err.createFolder", ex.Message));
         }
 
         try
         {
-            _log.Read("Читаю сохранение", sourcePath);
+            _log.Read(Loc.Get("log.readingSave"), sourcePath);
             var bytes = await Sl2File.ReadAllBytesSharedAsync(sourcePath, ct).ConfigureAwait(false);
             var sourceHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
 
@@ -122,8 +122,8 @@ public sealed class SnapshotService(ActivityLog log)
             if (writtenHash != sourceHash)
             {
                 TryDelete(temp);
-                _log.Error("Копия не совпала с оригиналом, файл удалён", temp);
-                return new FileOperationResult(false, "Копия не совпала с оригиналом - попробуйте ещё раз");
+                _log.Error(Loc.Get("log.copyMismatch"), temp);
+                return new FileOperationResult(false, Loc.Get("op.copyMismatch"));
             }
 
             // Если игра дописывала сейв прямо во время копирования, снимок
@@ -133,30 +133,30 @@ public sealed class SnapshotService(ActivityLog log)
             if (recheck != sourceHash)
             {
                 TryDelete(temp);
-                _log.Warn("Игра записывала сейв во время копирования, снимок отменён", sourcePath);
+                _log.Warn(Loc.Get("log.gameWriting"), sourcePath);
                 return new FileOperationResult(false,
-                    "Игра записывала сохранение прямо сейчас - подождите пару секунд и повторите");
+                    Loc.Get("op.gameWriting"));
             }
 
             File.Move(temp, destination, overwrite: true);
 
             var integrity = Sl2File.CheckIntegrity(bytes);
-            _log.Write($"Снимок создан ({bytes.Length / 1024 / 1024} МБ)", destination);
+            _log.Write(Loc.Get("log.snapshotCreated", bytes.Length / 1024 / 1024), destination);
 
             var message = integrity.FileRecognised && !integrity.AllOk
-                ? $"Снимок создан, но в исходном сейве повреждённых блоков: {integrity.BadCount}"
-                : "Снимок создан и проверен";
+                ? Loc.Get("op.createdDamaged", integrity.BadCount)
+                : Loc.Get("op.created");
 
             return new FileOperationResult(true, message, destination, sourceHash, integrity);
         }
         catch (OperationCanceledException)
         {
-            return new FileOperationResult(false, "Отменено");
+            return new FileOperationResult(false, Loc.Get("status.cancelled"));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _log.Error($"Не удалось создать снимок: {ex.Message}", destination);
-            return new FileOperationResult(false, $"Не удалось создать снимок: {ex.Message}");
+            _log.Error(Loc.Get("err.createSnapshot", ex.Message), destination);
+            return new FileOperationResult(false, Loc.Get("err.createSnapshot", ex.Message));
         }
     }
 
@@ -178,7 +178,7 @@ public sealed class SnapshotService(ActivityLog log)
         CancellationToken ct = default)
     {
         if (!File.Exists(snapshotPath))
-            return new FileOperationResult(false, "Снимок не найден");
+            return new FileOperationResult(false, Loc.Get("op.snapshotMissing"));
 
         try
         {
@@ -190,15 +190,15 @@ public sealed class SnapshotService(ActivityLog log)
             // насквозь, затирая игровой сейв.
             if (!integrity.AllOk)
             {
-                _log.Error($"Снимок не годится: {integrity.Problem}", snapshotPath);
+                _log.Error(Loc.Get("log.badSnapshot", integrity.Problem ?? ""), snapshotPath);
                 return new FileOperationResult(false,
-                    $"Снимок не годится - {integrity.Problem}. Восстановление отменено.",
+                    Loc.Get("op.badSnapshot", integrity.Problem ?? ""),
                     snapshotPath, null, integrity);
             }
 
             var sourceHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
 
-            string backupPath = "(файла не было)";
+            string backupPath = Loc.Get("op.noPreviousFile");
             if (File.Exists(gameSavePath))
             {
                 var gameFolder = System.IO.Path.GetDirectoryName(gameSavePath)!;
@@ -219,12 +219,12 @@ public sealed class SnapshotService(ActivityLog log)
                 if (!SHA256.HashData(backupWritten).SequenceEqual(SHA256.HashData(current)))
                 {
                     TryDelete(backupPath);
-                    _log.Error("Резервная копия не совпала с оригиналом, восстановление отменено", backupPath);
+                    _log.Error(Loc.Get("log.backupMismatch"), backupPath);
                     return new FileOperationResult(false,
-                        "Не удалось сделать надёжную резервную копию текущего сейва - восстановление отменено");
+                        Loc.Get("op.backupFailed"));
                 }
 
-                _log.Write("Текущий сейв сохранён в резервную копию", backupPath);
+                _log.Write(Loc.Get("log.backupDone"), backupPath);
             }
 
             // Пишем рядом и подменяем одним движением: игровой файл до самого
@@ -238,9 +238,9 @@ public sealed class SnapshotService(ActivityLog log)
                 if (Convert.ToHexStringLower(SHA256.HashData(staged)) != sourceHash)
                 {
                     TryDelete(staging);
-                    _log.Error("Подготовленный файл не совпал со снимком, игровой сейв не тронут", staging);
+                    _log.Error(Loc.Get("log.stagingMismatch"), staging);
                     return new FileOperationResult(false,
-                        $"Запись не удалась, игровой сейв остался прежним. Резервная копия: {System.IO.Path.GetFileName(backupPath)}");
+                        Loc.Get("op.writeFailed", System.IO.Path.GetFileName(backupPath)));
                 }
 
                 File.Move(staging, gameSavePath, overwrite: true);
@@ -251,22 +251,22 @@ public sealed class SnapshotService(ActivityLog log)
                 throw;
             }
 
-            _log.Write("Снимок восстановлен в игру", gameSavePath);
+            _log.Write(Loc.Get("log.restored"), gameSavePath);
             return new FileOperationResult(
                 true,
-                $"Восстановлено. Прежний сейв: {System.IO.Path.GetFileName(backupPath)}",
+                Loc.Get("op.restored", System.IO.Path.GetFileName(backupPath)),
                 gameSavePath,
                 sourceHash,
                 integrity);
         }
         catch (OperationCanceledException)
         {
-            return new FileOperationResult(false, "Отменено");
+            return new FileOperationResult(false, Loc.Get("status.cancelled"));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _log.Error($"Не удалось восстановить: {ex.Message}", gameSavePath);
-            return new FileOperationResult(false, $"Не удалось восстановить: {ex.Message}");
+            _log.Error(Loc.Get("err.restore", ex.Message), gameSavePath);
+            return new FileOperationResult(false, Loc.Get("err.restore", ex.Message));
         }
     }
 
@@ -293,7 +293,7 @@ public sealed class SnapshotService(ActivityLog log)
         {
             if (!TryDelete(snapshot.Path)) continue;
             removed++;
-            _log.Deleted("Старое автосохранение удалено", snapshot.Path);
+            _log.Deleted(Loc.Get("log.rotated"), snapshot.Path);
         }
 
         return removed;
@@ -302,22 +302,22 @@ public sealed class SnapshotService(ActivityLog log)
     public FileOperationResult Rename(string path, string newName)
     {
         if (newName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
-            return new FileOperationResult(false, "В имени файла есть недопустимые символы");
+            return new FileOperationResult(false, Loc.Get("op.badName"));
 
         var folder = System.IO.Path.GetDirectoryName(path)!;
         var destination = System.IO.Path.Combine(folder, newName);
         if (File.Exists(destination))
-            return new FileOperationResult(false, "Файл с таким именем уже есть");
+            return new FileOperationResult(false, Loc.Get("op.nameTaken"));
 
         try
         {
             File.Move(path, destination);
-            _log.Write($"Переименовано в {newName}", destination);
-            return new FileOperationResult(true, $"Переименовано в {newName}", destination);
+            _log.Write(Loc.Get("op.renamed", newName), destination);
+            return new FileOperationResult(true, Loc.Get("op.renamed", newName), destination);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new FileOperationResult(false, $"Не удалось переименовать: {ex.Message}");
+            return new FileOperationResult(false, Loc.Get("err.rename", ex.Message));
         }
     }
 
@@ -326,12 +326,12 @@ public sealed class SnapshotService(ActivityLog log)
         try
         {
             File.Delete(path);
-            _log.Deleted("Снимок удалён", path);
-            return new FileOperationResult(true, "Снимок удалён", path);
+            _log.Deleted(Loc.Get("op.deleted"), path);
+            return new FileOperationResult(true, Loc.Get("op.deleted"), path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new FileOperationResult(false, $"Не удалось удалить: {ex.Message}");
+            return new FileOperationResult(false, Loc.Get("err.delete", ex.Message));
         }
     }
 

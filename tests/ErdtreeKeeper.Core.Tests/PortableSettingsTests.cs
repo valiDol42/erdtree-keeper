@@ -17,7 +17,12 @@ public class PortableSettingsTests : IDisposable
     private readonly string _folder = Path.Combine(
         Path.GetTempPath(), "erdtree-keeper-tests", Guid.NewGuid().ToString("N"));
 
-    public PortableSettingsTests() => Directory.CreateDirectory(_folder);
+    public PortableSettingsTests()
+    {
+        // Имя папки по умолчанию переводится, а проверяется здесь русское.
+        Loc.Current.Language = Lang.Ru;
+        Directory.CreateDirectory(_folder);
+    }
 
     public void Dispose()
     {

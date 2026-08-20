@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ErdtreeKeeper.Core;
 
 namespace ErdtreeKeeper.Views;
 
@@ -108,7 +109,7 @@ public static class Dialogs
         var result = false;
 
         var yes = Action(confirmText, danger: true);
-        var no = Action("Отмена");
+        var no = Action(Loc.Get("app.cancel"));
 
         var body = new StackPanel
         {
@@ -134,8 +135,8 @@ public static class Dialogs
         string? result = null;
 
         var input = new TextBox { Text = initial };
-        var ok = Action("Сохранить", primary: true);
-        var cancel = Action("Отмена");
+        var ok = Action(Loc.Get("app.save"), primary: true);
+        var cancel = Action(Loc.Get("app.cancel"));
 
         var body = new StackPanel
         {
@@ -171,7 +172,7 @@ public static class Dialogs
     /// </summary>
     public static Window CreateReportWindow(string title, string text)
     {
-        var close = Action("Закрыть", primary: true);
+        var close = Action(Loc.Get("app.close"), primary: true);
 
         var body = new StackPanel
         {
@@ -220,53 +221,37 @@ public static class Dialogs
     /// </summary>
     public static Window CreateTransparencyWindow(string settingsPath, string snapshotFolder)
     {
-        var close = Action("Закрыть", primary: true);
+        var close = Action(Loc.Get("app.close"), primary: true);
 
         var body = new StackPanel
         {
             Spacing = 18,
             Children =
             {
-                Heading("Что программа делает"),
+                Heading(Loc.Get("trans.title")),
 
                 // Главное обещание вынесено наверх и подсвечено: с него
                 // начинаются все вопросы недоверчивого игрока.
                 NoNetworkBadge(),
 
-                Section("Читает", Res<IBrush>("TextSecondaryBrush"),
-                    $"Папку сохранений {Core.GameSaves.DefaultRoot} и файлы .sl2 и .co2 внутри неё. "
-                    + "Файлы открываются только на чтение и в режиме, который не мешает игре."),
+                Section(Loc.Get("trans.reads"), Res<IBrush>("TextSecondaryBrush"),
+                    Loc.Get("trans.readsWhat", Core.GameSaves.DefaultRoot)),
 
-                Section("Пишет", Res<IBrush>("AccentBrightBrush"),
-                    $"Снимки в папку {snapshotFolder}\n"
-                    + $"Настройки в файл {settingsPath}\n\n"
-                    + "В папку игры программа пишет ровно один раз - когда вы нажимаете "
-                    + "\"Восстановить в игру\". Перед этим текущий сейв всегда уезжает в "
-                    + $"подпапку \"{Core.SnapshotService.RestoreBackupFolder}\"."),
+                Section(Loc.Get("trans.writes"), Res<IBrush>("AccentBrightBrush"),
+                    Loc.Get("trans.writesWhat", snapshotFolder, settingsPath,
+                        Core.SnapshotService.RestoreBackupFolder)),
 
-                Section("Не делает", Res<IBrush>("FreshBrush"),
-                    "Не обращается в интернет - ни за обновлениями, ни со статистикой. "
-                    + "Ссылка на сайт проекта - единственное исключение, и работает она "
-                    + "не сама: по щелчку программа просит систему открыть браузер, "
-                    + "а соединение устанавливает уже он.\n"
-                    + "Не меняет содержимое сохранений: копируется файл целиком, байт в байт.\n"
-                    + "Не просит прав администратора.\n"
-                    + "Не прописывается в автозагрузку и не остаётся в памяти после закрытия.\n"
-                    + "Не изменяет файлы игры, реестр и системные настройки."),
+                Section(Loc.Get("trans.notDoes"), Res<IBrush>("FreshBrush"),
+                    Loc.Get("trans.notDoesWhat")),
 
-                Section("Как проверить", Res<IBrush>("TextSecondaryBrush"),
-                    "Журнал операций показывает каждое обращение к диску, и его "
-                    + "можно выгрузить в текстовый файл.\n"
-                    + "Отсутствие сети проверяется любым монитором соединений - в готовом "
-                    + "файле нет ни одной сетевой библиотеки.\n"
-                    + "Исходный код открыт: собранный файл можно сверить по контрольной сумме "
-                    + "в окне \"О программе\"."),
+                Section(Loc.Get("trans.howToCheck"), Res<IBrush>("TextSecondaryBrush"),
+                    Loc.Get("trans.howToCheckWhat")),
 
                 Buttons(close),
             },
         };
 
-        var window = Shell("Что программа делает", 680, body);
+        var window = Shell(Loc.Get("trans.title"), 680, body);
         close.Click += (_, _) => window.Close();
         return window;
     }
@@ -305,15 +290,14 @@ public static class Dialogs
                     {
                         new TextBlock
                         {
-                            Text = "Не выходит в интернет",
+                            Text = Loc.Get("trans.noNetwork"),
                             FontSize = 13,
                             FontWeight = Avalonia.Media.FontWeight.SemiBold,
                             Foreground = Res<IBrush>("FreshBrush"),
                         },
                         new TextBlock
                         {
-                            Text = "В готовом файле нет ни одной сетевой библиотеки - "
-                                   + "открыть соединение программа технически не может.",
+                            Text = Loc.Get("trans.noNetworkWhy"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                             MaxWidth = 540,
@@ -359,7 +343,7 @@ public static class Dialogs
         int minutes, int keep, string folder,
         Action<int> onMinutes, Action<int> onKeep, Func<Task<string?>> pickFolder)
     {
-        var close = Action("Готово", primary: true);
+        var close = Action(Loc.Get("app.done"), primary: true);
 
         var minutesBox = new NumericUpDown
         {
@@ -382,7 +366,7 @@ public static class Dialogs
         };
 
         var folderBox = new TextBox { Text = folder, IsReadOnly = true };
-        var browse = new Button { Content = "Обзор...", Classes = { "chip" } };
+        var browse = new Button { Content = Loc.Get("app.browse"), Classes = { "chip" } };
         browse.Click += async (_, _) =>
         {
             var picked = await pickFolder();
@@ -394,21 +378,19 @@ public static class Dialogs
             Spacing = 18,
             Children =
             {
-                Heading("Автосохранение"),
+                Heading(Loc.Get("auto.title")),
 
-                Body("Снимок делается по факту записи сейва игрой, а не по расписанию: "
-                     + "копия, снятая в момент записи, была бы обрывком. Указанные минуты - "
-                     + "нижняя граница частоты, чаще этого снимок не сработает."),
+                Body(Loc.Get("auto.explain")),
 
-                Labelled("Не чаще одного снимка в", minutesBox, "мин"),
-                Labelled("Хранить последних", keepBox, "шт"),
+                Labelled(Loc.Get("auto.interval"), minutesBox, Loc.Get("auto.minutes")),
+                Labelled(Loc.Get("auto.keep"), keepBox, Loc.Get("auto.pieces")),
 
                 new StackPanel
                 {
                     Spacing = 6,
                     Children =
                     {
-                        new TextBlock { Text = "ПАПКА ДЛЯ АВТОСОХРАНЕНИЙ", Classes = { "section" } },
+                        new TextBlock { Text = Loc.Get("auto.folder"), Classes = { "section" } },
                         new Grid
                         {
                             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
@@ -416,8 +398,7 @@ public static class Dialogs
                         },
                         new TextBlock
                         {
-                            Text = "Можно указать другой диск - тогда копии переживут "
-                                   + "переустановку системы.",
+                            Text = Loc.Get("auto.folderHint"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -431,7 +412,7 @@ public static class Dialogs
         Grid.SetColumn(browse, 1);
         browse.Margin = new Thickness(8, 0, 0, 0);
 
-        var window = Shell("Автосохранение", 560, body);
+        var window = Shell(Loc.Get("auto.title"), 560, body);
         close.Click += (_, _) => window.Close();
         return window;
     }
@@ -481,7 +462,7 @@ public static class Dialogs
     /// </summary>
     public static Window CreatePlayerCardWindow(Core.SaveContext context)
     {
-        var close = Action("Закрыть", primary: true);
+        var close = Action(Loc.Get("app.close"), primary: true);
         var slot = context.Character;
 
         var body = new StackPanel
@@ -492,7 +473,7 @@ public static class Dialogs
                 Heading(slot.Name),
                 new TextBlock
                 {
-                    Text = $"{slot.Level} уровень  ·  {slot.ClassName}  ·  слот {slot.Index + 1}",
+                    Text = Loc.Get("card.levelLine", slot.Level, slot.ClassName, slot.Index + 1),
                     Classes = { "body" },
                     Foreground = Res<IBrush>("AccentBrightBrush"),
                 },
@@ -500,52 +481,51 @@ public static class Dialogs
                 StatGrid(slot.Stats),
 
                 // Названия показателей отличаются от одноимённых характеристик:
-                // "Здоровье" - вложенные очки, "Очки здоровья" - что они дали.
-                Facts("ПОКАЗАТЕЛИ",
+                // "Здоровье" - вложенные очки, Loc.Get("card.hp") - что они дали.
+                Facts(Loc.Get("card.vitals"),
                 [
-                    ("Очки здоровья", Number(slot.MaxHp)),
-                    ("Очки фокуса", Number(slot.MaxFp)),
-                    ("Очки выносливости", Number(slot.MaxStamina)),
+                    (Loc.Get("card.hp"), Number(slot.MaxHp)),
+                    (Loc.Get("card.fp"), Number(slot.MaxFp)),
+                    (Loc.Get("card.stamina"), Number(slot.MaxStamina)),
                 ]),
 
-                Facts("ПРОГРЕСС",
+                Facts(Loc.Get("card.progress"),
                 [
-                    ("Рун при себе", Number(slot.Runes)),
-                    ("Собрано рун всего", Number(slot.RuneMemory)),
-                    ("В игре", slot.PlayedText),
+                    (Loc.Get("card.runes"), Number(slot.Runes)),
+                    (Loc.Get("card.runeMemory"), Number(slot.RuneMemory)),
+                    (Loc.Get("card.played"), slot.PlayedText),
                 ]),
 
                 // Расхождение означало бы, что разбор структуры съехал. Молчать
                 // об этом нельзя: рядом стоят числа, на которые игрок смотрит.
                 slot.Level == slot.LevelFromStats
                     ? new Panel()
-                    : Warning($"Уровень не сходится с характеристиками: в сейве {slot.Level}, "
-                              + $"по вложенным очкам {slot.LevelFromStats}. Числам выше верить нельзя."),
+                    : Warning(Loc.Get("card.levelMismatch", slot.Level, slot.LevelFromStats)),
 
                 context.IsDlc
-                    ? Facts("ЗЕМЛИ ТЕНЕЙ",
+                    ? Facts(Loc.Get("card.dlc"),
                     [
-                        ("Благословение Древа Теней", context.ScadutreeBlessing.ToString()),
-                        ("Благословение праха", context.SpiritAshBlessing.ToString()),
+                        (Loc.Get("card.scadutree"), context.ScadutreeBlessing.ToString()),
+                        (Loc.Get("card.spiritAsh"), context.SpiritAshBlessing.ToString()),
                     ])
                     : new Panel(),
 
-                Facts("ГДЕ СЕЙЧАС",
+                Facts(Loc.Get("card.where"),
                 [
-                    ("Ближайшая благодать", context.Location is null
-                        ? "не определилась"
-                        : $"{context.Location.Ru} ({context.Location.Distance} м)"),
-                    ("Ближайший босс", context.Boss is null
-                        ? "рядом нет"
-                        : $"{context.Boss.Ru} ({context.Boss.Distance} м)"),
-                    ("Карта", context.MapId.Length == 0 ? "неизвестно" : context.MapId),
+                    (Loc.Get("card.nearestGrace"), context.Location is null
+                        ? Loc.Get("card.notFound")
+                        : Loc.Get("card.distance", context.Location.Display, context.Location.Distance)),
+                    (Loc.Get("card.nearestBoss"), context.Boss is null
+                        ? Loc.Get("card.noneNearby")
+                        : Loc.Get("card.distance", context.Boss.Display, context.Boss.Distance)),
+                    (Loc.Get("card.map"), context.MapId.Length == 0 ? Loc.Get("card.unknown") : context.MapId),
                 ]),
 
                 Buttons(close),
             },
         };
 
-        var window = Shell("Карточка игрока", 560, body);
+        var window = Shell(Loc.Get("card.title"), 560, body);
         close.Click += (_, _) => window.Close();
         return window;
     }
@@ -560,7 +540,7 @@ public static class Dialogs
     {
         var format = (System.Globalization.NumberFormatInfo)
             System.Globalization.CultureInfo.InvariantCulture.NumberFormat.Clone();
-        format.NumberGroupSeparator = " ";
+        format.NumberGroupSeparator = Loc.Current.IsEnglish ? "," : " ";
         format.NumberDecimalDigits = 0;
         return value.ToString("N", format);
     }
@@ -659,20 +639,20 @@ public static class Dialogs
     /// <summary>О программе: версия, пути и контрольная сумма самого файла.</summary>
     public static Window CreateAboutWindow(string settingsPath, bool portable, string fileState)
     {
-        var close = Action("Закрыть", primary: true);
+        var close = Action(Loc.Get("app.close"), primary: true);
 
         var hashLine = new SelectableTextBlock
         {
-            Text = "нажмите кнопку, чтобы посчитать",
+            Text = Loc.Get("about.hashPrompt"),
             Classes = { "mono" },
             TextWrapping = TextWrapping.Wrap,
             Foreground = Res<IBrush>("TextSecondaryBrush"),
         };
 
-        var hashButton = new Button { Content = "Посчитать SHA-256", Classes = { "chip" } };
+        var hashButton = new Button { Content = Loc.Get("about.hashButton"), Classes = { "chip" } };
         hashButton.Click += async (_, _) =>
         {
-            hashLine.Text = "считаю...";
+            hashLine.Text = Loc.Get("about.hashWorking");
             hashButton.IsEnabled = false;
             hashLine.Text = await Task.Run(SelfHash);
         };
@@ -683,19 +663,18 @@ public static class Dialogs
             Children =
             {
                 Heading(AppInfo.Name),
-                Body($"Версия {AppInfo.FullVersion}. Хранитель файлов сохранения Elden Ring.\n"
-                     + "Лицензия MIT."),
+                Body(Loc.Get("about.version", AppInfo.FullVersion)),
 
                 new StackPanel
                 {
                     Spacing = 4,
                     Children =
                     {
-                        new TextBlock { Text = "СВЯЗЬ", Classes = { "section" } },
+                        new TextBlock { Text = Loc.Get("about.contact"), Classes = { "section" } },
                         Link(ExternalLinks.Email, ExternalLinks.EmailLink),
                         new TextBlock
                         {
-                            Text = "Вопросы, ошибки и всё, что касается безопасности - сюда.",
+                            Text = Loc.Get("about.contactWhat"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -707,12 +686,11 @@ public static class Dialogs
                     Spacing = 4,
                     Children =
                     {
-                        new TextBlock { Text = "САЙТ ПРОЕКТА", Classes = { "section" } },
+                        new TextBlock { Text = Loc.Get("about.site"), Classes = { "section" } },
                         Link(ExternalLinks.SiteLabel, ExternalLinks.Site),
                         new TextBlock
                         {
-                            Text = "Карта и трекер прогресса Elden Ring. Оттуда же взят справочник "
-                                   + "мест благодати и арен боссов, по которому программа называет снимки.",
+                            Text = Loc.Get("about.siteWhat"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -724,13 +702,11 @@ public static class Dialogs
                     Spacing = 4,
                     Children =
                     {
-                        new TextBlock { Text = "ИСХОДНЫЙ КОД", Classes = { "section" } },
+                        new TextBlock { Text = Loc.Get("about.source"), Classes = { "section" } },
                         Link(ExternalLinks.RepositoryLabel, ExternalLinks.Repository),
                         new TextBlock
                         {
-                            Text = "Всё, что делает программа, можно прочитать целиком. Там же "
-                                   + "лежат контрольные суммы релизов и подтверждение того, что "
-                                   + "выложенный файл собран именно из этого кода.",
+                            Text = Loc.Get("about.sourceWhat"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -739,24 +715,19 @@ public static class Dialogs
 
                 // Пути не зашиты: папка программы берётся у самого процесса,
                 // а состояние файла настроек читается с диска при открытии окна.
-                Section("Где что лежит", Res<IBrush>("TextSecondaryBrush"),
-                    $"Программа: {Core.PortableSettings.AppFolder}\n\n"
-                    + $"Настройки: {settingsPath}\n"
-                    + $"Сейчас на диске: {fileState}\n\n"
-                    + (portable
-                        ? "Настройки лежат рядом с программой - её можно носить на флешке."
-                        : "Папка программы недоступна для записи, поэтому настройки ушли в AppData.")),
+                Section(Loc.Get("about.where"), Res<IBrush>("TextSecondaryBrush"),
+                    Loc.Get("about.whereWhat", Core.PortableSettings.AppFolder, settingsPath, fileState,
+                        Loc.Get(portable ? "about.portable" : "about.notPortable"))),
 
                 new StackPanel
                 {
                     Spacing = 8,
                     Children =
                     {
-                        new TextBlock { Text = "КОНТРОЛЬНАЯ СУММА ЭТОГО ФАЙЛА", Classes = { "section" } },
+                        new TextBlock { Text = Loc.Get("about.hash"), Classes = { "section" } },
                         new TextBlock
                         {
-                            Text = "Сверьте её с суммой, опубликованной на странице релиза: "
-                                   + "совпадение означает, что файл не подменяли.",
+                            Text = Loc.Get("about.hashWhy"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                         },
@@ -769,7 +740,7 @@ public static class Dialogs
             },
         };
 
-        var window = Shell("О программе", 640, body);
+        var window = Shell(Loc.Get("about.title"), 640, body);
         close.Click += (_, _) => window.Close();
         return window;
     }
@@ -782,7 +753,7 @@ public static class Dialogs
         try
         {
             var path = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(path)) return "не удалось определить путь к файлу";
+            if (string.IsNullOrEmpty(path)) return Loc.Get("about.hashNoPath");
 
             using var stream = File.OpenRead(path);
             var hash = System.Security.Cryptography.SHA256.HashData(stream);
@@ -790,7 +761,7 @@ public static class Dialogs
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return $"не удалось посчитать: {ex.Message}";
+            return Loc.Get("about.hashFailed", ex.Message);
         }
     }
 }

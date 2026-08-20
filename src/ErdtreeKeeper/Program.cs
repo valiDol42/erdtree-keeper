@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using ErdtreeKeeper.Core;
 using Avalonia;
 
 namespace ErdtreeKeeper;
@@ -26,6 +27,11 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Настройки читаются позже, уже в модели окна, а сообщение о нехватке
+        // библиотек может понадобиться прямо сейчас - поэтому язык сначала
+        // берётся из системы, а выбор пользователя применяется поверх.
+        Loc.Current.Language = Loc.DetectFromSystem();
+
         if (!CheckLibraries()) return;
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
@@ -53,18 +59,8 @@ internal static class Program
 
         MessageBox(
             IntPtr.Zero,
-            $"""
-             Рядом с программой не хватает файлов:
-
-             {string.Join(Environment.NewLine, missing)}
-
-             Скорее всего, из архива распакован только ErdtreeKeeper.exe.
-             Распакуйте архив целиком - библиотеки должны лежать в одной папке
-             с программой.
-
-             Папка: {folder}
-             """,
-            $"{AppInfo.Name}: не хватает файлов",
+            Loc.Get("startup.missingBody", string.Join(Environment.NewLine, missing), folder),
+            Loc.Get("startup.missingTitle", AppInfo.Name),
             MB_ICONERROR | MB_OK);
 
         return false;

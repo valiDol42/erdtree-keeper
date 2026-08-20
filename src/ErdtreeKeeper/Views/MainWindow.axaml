@@ -28,7 +28,7 @@
 
                     <StackPanel Spacing="1" VerticalAlignment="Center">
                         <TextBlock Text="Erdtree Keeper" Classes="title" />
-                        <TextBlock Text="Хранитель файлов сохранения Elden Ring" Classes="muted" />
+                        <TextBlock Text="{Binding L[app.subtitle]}" Classes="muted" />
                     </StackPanel>
                 </StackPanel>
 
@@ -37,8 +37,12 @@
                      объяснением, как их проверить, а не висит без контекста. -->
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Classes="ghost" Content="Что программа делает" Click="OnShowTransparency" />
-                    <Button Classes="ghost" Content="О программе" Click="OnShowAbout" />
+                    <!-- Переключатель языка: RU/EN без перезапуска -->
+                    <ToggleButton Classes="ghost" Content="EN"
+                                  ToolTip.Tip="{Binding L[app.language]}"
+                                  IsChecked="{Binding IsEnglish}" />
+                    <Button Classes="ghost" Content="{Binding L[app.whatItDoes]}" Click="OnShowTransparency" />
+                    <Button Classes="ghost" Content="{Binding L[app.about]}" Click="OnShowAbout" />
                 </StackPanel>
             </Grid>
 
@@ -46,7 +50,7 @@
             <!-- Числа берутся из того же справочника, которым программа
                  называет снимки: обещание подкреплено содержимым файла. -->
             <Button Grid.Row="1" Classes="banner" Margin="0,0,0,14"
-                    ToolTip.Tip="Открыть eldenring.krut.top в браузере"
+                    ToolTip.Tip="{Binding L[tracker.openTip]}"
                     Click="OnOpenSite">
 
                 <Grid ColumnDefinitions="Auto,*,Auto" >
@@ -66,9 +70,9 @@
                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="Erdtree Compass" Classes="title accent" />
-                            <TextBlock Text="интерактивная карта Elden Ring" Classes="secondary"
+                            <TextBlock Text="{Binding L[tracker.tagline]}" Classes="secondary"
                                        VerticalAlignment="Center" />
-                            <TextBlock Text="Удобно и абсолютно безопасно!" Classes="secondary"
+                            <TextBlock Text="{Binding L[tracker.safe]}" Classes="secondary"
                                        Foreground="{DynamicResource FreshBrush}"
                                        VerticalAlignment="Center" />
                         </StackPanel>
@@ -94,10 +98,10 @@
                         <!-- Откуда -->
                         <Border Classes="card">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="ОТКУДА" Classes="section" />
+                                <TextBlock Text="{Binding L[source.section]}" Classes="section" />
 
                                 <StackPanel Spacing="6">
-                                    <TextBlock Text="Аккаунт Steam" Classes="secondary" />
+                                    <TextBlock Text="{Binding L[source.account]}" Classes="secondary" />
                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                         <ComboBox Grid.Column="0"
                                                   ItemsSource="{Binding Accounts}"
@@ -109,13 +113,13 @@
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
-                                        <Button Grid.Column="1" Content="Подписать"
+                                        <Button Grid.Column="1" Content="{Binding L[source.rename]}"
                                                 Command="{Binding RenameAccountCommand}" />
                                     </Grid>
                                 </StackPanel>
 
                                 <StackPanel Spacing="6">
-                                    <TextBlock Text="Файл сохранения" Classes="secondary" />
+                                    <TextBlock Text="{Binding L[source.file]}" Classes="secondary" />
                                     <ComboBox ItemsSource="{Binding SaveFiles}"
                                               SelectedItem="{Binding SelectedSaveFile}"
                                               HorizontalAlignment="Stretch">
@@ -148,7 +152,7 @@
                                 <!-- Блок кликается целиком и открывает карточку
                                      игрока: всё, что удалось прочитать из сейва. -->
                                 <Button Classes="block" IsEnabled="{Binding HasContext}"
-                                        ToolTip.Tip="Открыть карточку игрока"
+                                        ToolTip.Tip="{Binding L[source.playerCardTip]}"
                                         Click="OnShowPlayerCard">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <StackPanel Grid.Column="0" Spacing="6">
@@ -164,10 +168,10 @@
                                 </Button>
 
                                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                    <Button Grid.Column="0" Content="Прочитать сейв"
+                                    <Button Grid.Column="0" Content="{Binding L[source.read]}"
                                             HorizontalAlignment="Stretch"
                                             Command="{Binding AnalyzeCommand}" />
-                                    <Button Grid.Column="1" Content="Проверить целостность"
+                                    <Button Grid.Column="1" Content="{Binding L[source.checkIntegrity]}"
                                             HorizontalAlignment="Stretch"
                                             Command="{Binding CheckIntegrityCommand}" />
                                 </Grid>
@@ -177,25 +181,25 @@
                         <!-- Имя снимка -->
                         <Border Classes="card">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="ИМЯ СНИМКА" Classes="section" />
+                                <TextBlock Text="{Binding L[name.section]}" Classes="section" />
 
                                 <TextBox Text="{Binding SnapshotName}"
-                                         PlaceholderText="например: Годрик" />
+                                         PlaceholderText="{Binding L[name.placeholder]}" />
 
                                 <!-- Имя набирается кнопками: так написание одного
                                      и того же места не расходится между файлами. -->
                                 <WrapPanel ItemSpacing="6" LineSpacing="6">
-                                    <Button Classes="chip" Content="+ локация"
-                                            ToolTip.Tip="Подставить ближайшее место благодати из сейва"
+                                    <Button Classes="chip" Content="{Binding L[name.addLocation]}"
+                                            ToolTip.Tip="{Binding L[name.addLocationTip]}"
                                             Command="{Binding AddLocationCommand}" />
-                                    <Button Classes="chip" Content="+ босс"
-                                            ToolTip.Tip="Подставить ближайшую арену босса из сейва"
+                                    <Button Classes="chip" Content="{Binding L[name.addBoss]}"
+                                            ToolTip.Tip="{Binding L[name.addBossTip]}"
                                             Command="{Binding AddBossCommand}" />
-                                    <Button Classes="chip" Content="+ до"
+                                    <Button Classes="chip" Content="{Binding L[name.addBefore]}"
                                             Command="{Binding AddBeforeCommand}" />
-                                    <Button Classes="chip" Content="+ после"
+                                    <Button Classes="chip" Content="{Binding L[name.addAfter]}"
                                             Command="{Binding AddAfterCommand}" />
-                                    <Button Classes="chip" Content="очистить"
+                                    <Button Classes="chip" Content="{Binding L[name.clear]}"
                                             Command="{Binding ClearNameCommand}" />
                                 </WrapPanel>
 
@@ -205,7 +209,7 @@
                                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding SnapshotPreview}" />
 
-                                <Button Classes="primary" Content="Сделать снимок"
+                                <Button Classes="primary" Content="{Binding L[name.take]}"
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding CreateSnapshotCommand}" />
 
@@ -213,10 +217,10 @@
                                      экране им не хватало высоты, и строка с папкой
                                      уезжала за край при невысоком окне. -->
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <CheckBox Grid.Column="0" Content="Автосохранение"
-                                              ToolTip.Tip="Снимок делается после того, как игра запишет сейв. Смотреть и восстанавливать их можно, переключив список справа на «Автосохранения»"
+                                    <CheckBox Grid.Column="0" Content="{Binding L[auto.enable]}"
+                                              ToolTip.Tip="{Binding L[auto.enableTip]}"
                                               IsChecked="{Binding AutoSnapshotEnabled}" />
-                                    <Button Grid.Column="1" Classes="chip" Content="Настроить..."
+                                    <Button Grid.Column="1" Classes="chip" Content="{Binding L[auto.configure]}"
                                             IsEnabled="{Binding AutoSnapshotEnabled}"
                                             Click="OnShowAutoSaveSettings" />
                                 </Grid>
@@ -240,8 +244,8 @@
                                       ItemsSource="{Binding SnapshotSources}"
                                       SelectedIndex="{Binding SnapshotSourceIndex}" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-                                <Button Classes="chip" Content="Обзор..." Command="{Binding PickFolderCommand}" />
-                                <Button Classes="chip" Content="Открыть папку" Command="{Binding OpenSnapshotFolderCommand}" />
+                                <Button Classes="chip" Content="{Binding L[app.browse]}" Command="{Binding PickFolderCommand}" />
+                                <Button Classes="chip" Content="{Binding L[app.openFolder]}" Command="{Binding OpenSnapshotFolderCommand}" />
                             </StackPanel>
                         </Grid>
 
@@ -307,7 +311,7 @@
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                                             Spacing="6" MaxWidth="380"
                                             IsVisible="{Binding !Snapshots.Count}">
-                                    <TextBlock Text="Снимков пока нет" Classes="body"
+                                    <TextBlock Text="{Binding L[list.empty]}" Classes="body"
                                                HorizontalAlignment="Center"
                                                Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBlock Classes="muted" TextAlignment="Center"
@@ -319,9 +323,9 @@
 
                         <StackPanel Grid.Row="3" Spacing="10" Margin="0,12,0,0">
                             <Grid ColumnDefinitions="Auto,Auto,*">
-                                <Button Grid.Column="0" Classes="chip" Content="Выделить всё"
+                                <Button Grid.Column="0" Classes="chip" Content="{Binding L[list.selectAll]}"
                                         Margin="0,0,6,0" Command="{Binding SelectAllCommand}" />
-                                <Button Grid.Column="1" Classes="chip" Content="Снять выделение"
+                                <Button Grid.Column="1" Classes="chip" Content="{Binding L[list.clearSelection]}"
                                         Command="{Binding ClearSelectionCommand}" />
                                 <!-- Сколько файлов затронет следующая операция -->
                                 <TextBlock Grid.Column="2" Text="{Binding SelectionSummary}"
@@ -330,14 +334,14 @@
                             </Grid>
 
                             <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
-                                <Button Grid.Column="0" Content="Переименовать"
-                                        ToolTip.Tip="Доступно, когда выбран ровно один файл"
+                                <Button Grid.Column="0" Content="{Binding L[list.rename]}"
+                                        ToolTip.Tip="{Binding L[list.oneOnlyTip]}"
                                         Command="{Binding RenameCommand}" />
                                 <Button Grid.Column="1" Content="{Binding DeleteLabel}"
                                         Command="{Binding DeleteCommand}" />
                                 <!-- Необратимое действие стоит поодаль от остальных -->
-                                <Button Grid.Column="3" Classes="danger" Content="Восстановить в игру"
-                                        ToolTip.Tip="Доступно, когда выбран ровно один файл"
+                                <Button Grid.Column="3" Classes="danger" Content="{Binding L[list.restore]}"
+                                        ToolTip.Tip="{Binding L[list.oneOnlyTip]}"
                                         Command="{Binding RestoreCommand}" />
                             </Grid>
                         </StackPanel>
@@ -349,14 +353,14 @@
                         IsVisible="{Binding #LogToggle.IsChecked}">
                     <Grid RowDefinitions="Auto,Auto">
                         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10">
-                            <TextBlock Grid.Column="0" Text="ЖУРНАЛ ОПЕРАЦИЙ" Classes="section"
+                            <TextBlock Grid.Column="0" Text="{Binding L[log.section]}" Classes="section"
                                        VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Classes="chip" Content="Выгрузить в файл"
+                            <Button Grid.Column="1" Classes="chip" Content="{Binding L[log.export]}"
                                     Command="{Binding ExportLogCommand}" />
                             <!-- Закрыть можно и здесь, и переключателем внизу окна:
                                  искать способ убрать журнал не должно приходиться. -->
                             <Button Grid.Column="2" Classes="ghost" Content="✕" Margin="6,0,0,0"
-                                    ToolTip.Tip="Скрыть журнал"
+                                    ToolTip.Tip="{Binding L[log.hide]}"
                                     Click="OnHideLog" />
                         </Grid>
 
@@ -385,7 +389,7 @@
                                Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis" />
                     <ToggleButton Grid.Column="1" Name="LogToggle" Classes="ghost"
-                                  Content="Журнал операций" />
+                                  Content="{Binding L[log.toggle]}" />
                 </Grid>
 
                 <Border Classes="divider" Margin="0,10,0,6" />
@@ -396,12 +400,12 @@
                                VerticalAlignment="Center" />
                     <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
                     <Button Classes="link" Content="krut.top" Padding="0,2"
-                            ToolTip.Tip="Открыть krut.top в браузере"
+                            ToolTip.Tip="{Binding L[foot.siteTip]}"
                             Click="OnOpenHome" />
                     <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
                     <!-- Почта для связи: по ней же присылают вопросы про безопасность -->
                     <Button Classes="link" Content="admin@krut.top" Padding="0,2"
-                            ToolTip.Tip="Написать: admin@krut.top"
+                            ToolTip.Tip="{Binding L[foot.mailTip]}"
                             Click="OnOpenEmail" />
                 </StackPanel>
             </StackPanel>
@@ -412,39 +416,39 @@
             <Border Classes="card" MaxWidth="640" Padding="28"
                     VerticalAlignment="Center" HorizontalAlignment="Center">
                 <StackPanel Spacing="16">
-                    <TextBlock Text="Прежде чем начать" Classes="display" />
+                    <TextBlock Text="{Binding L[onboard.title]}" Classes="display" />
 
                     <TextBlock Classes="body" Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="Эта программа копирует файлы сохранений Elden Ring, чтобы к ним можно было вернуться. Она открытая: исходный код можно прочитать целиком, и ниже честно написано, что именно она делает." />
+                               Text="{Binding L[onboard.lead]}" />
 
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Её делает команда карты" Classes="secondary"
+                        <TextBlock Text="{Binding L[onboard.madeBy]}" Classes="secondary"
                                    VerticalAlignment="Center" />
                         <Button Classes="link" Content="eldenring.krut.top" Click="OnOpenSite" />
                     </StackPanel>
 
                     <StackPanel Spacing="9">
-                        <TextBlock Text="ЧТО ОНА ДЕЛАЕТ" Classes="section" />
-                        <TextBlock Classes="secondary" Text="•  Читает файлы сохранений и копирует их в выбранную вами папку." />
-                        <TextBlock Classes="secondary" Text="•  По вашей команде кладёт копию обратно в папку игры, предварительно сохранив текущий сейв." />
-                        <TextBlock Classes="secondary" Text="•  Хранит настройки в одном файле рядом с собой." />
+                        <TextBlock Text="{Binding L[onboard.does]}" Classes="section" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.does1]}" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.does2]}" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.does3]}" />
                     </StackPanel>
 
                     <StackPanel Spacing="9">
-                        <TextBlock Text="ЧЕГО ОНА НЕ ДЕЛАЕТ" Classes="section" />
-                        <TextBlock Classes="secondary" Text="•  Не выходит в интернет: ни обновлений, ни статистики, ни отправки файлов. Ссылка выше открывает сайт в вашем браузере - соединение устанавливает он, а не программа." />
-                        <TextBlock Classes="secondary" Text="•  Не меняет ни одного байта внутри сохранения - только копирует файл целиком." />
-                        <TextBlock Classes="secondary" Text="•  Не просит прав администратора и не трогает системные настройки." />
-                        <TextBlock Classes="secondary" Text="•  Не запускается сама и ничего не прописывает в автозагрузку." />
+                        <TextBlock Text="{Binding L[onboard.doesNot]}" Classes="section" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.not1]}" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.not2]}" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.not3]}" />
+                        <TextBlock Classes="secondary" Text="{Binding L[onboard.not4]}" />
                     </StackPanel>
 
                     <Border Classes="inset" Background="{DynamicResource WarnWashBrush}"
                             BorderBrush="{DynamicResource WarnBrush}">
                         <TextBlock Classes="secondary" Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Text="Восстановление заменяет сейв в игре. Программа всегда сначала откладывает текущий файл в резервную копию, но игру перед этим нужно полностью закрыть - иначе она перезапишет файл своим состоянием." />
+                                   Text="{Binding L[onboard.warning]}" />
                     </Border>
 
-                    <Button Classes="primary" Content="Понятно" HorizontalAlignment="Right"
+                    <Button Classes="primary" Content="{Binding L[onboard.ok]}" HorizontalAlignment="Right"
                             Command="{Binding DismissOnboardingCommand}" />
                 </StackPanel>
             </Border>

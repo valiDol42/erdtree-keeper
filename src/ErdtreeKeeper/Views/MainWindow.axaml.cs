@@ -36,9 +36,9 @@ public partial class MainWindow : Window
         // Сбой в любой команде не должен закрывать окно молча.
         AsyncRelayCommand.UnhandledError += ex => Dispatcher.UIThread.Post(async () =>
         {
-            vm.Log.Error($"Сбой: {ex.GetType().Name}: {ex.Message}");
-            await Dialogs.ReportAsync(this, "Что-то пошло не так",
-                "Действие не выполнено. Файлы не тронуты." + Environment.NewLine + Environment.NewLine
+            vm.Log.Error(Loc.Get("err.crashLog", ex.GetType().Name, ex.Message));
+            await Dialogs.ReportAsync(this, Loc.Get("err.crashTitle"),
+                Loc.Get("err.crashBody") + Environment.NewLine + Environment.NewLine
                 + ex.GetType().Name + ": " + ex.Message + Environment.NewLine + Environment.NewLine
                 + (ex.StackTrace ?? ""));
         });
@@ -122,7 +122,7 @@ public partial class MainWindow : Window
             keep => vm.AutoKeep = keep,
             async () =>
             {
-                var picked = await PickFolderAsync("Куда складывать автосохранения", vm.AutoFolder);
+                var picked = await PickFolderAsync(Loc.Get("auto.pickFolder"), vm.AutoFolder);
                 if (!string.IsNullOrWhiteSpace(picked)) vm.AutoFolder = picked;
                 return vm.AutoFolder;
             });

@@ -1,4 +1,5 @@
 using System.Reflection;
+using ErdtreeKeeper.Core;
 
 namespace ErdtreeKeeper;
 
@@ -21,7 +22,7 @@ public static class AppInfo
     /// непонятно, обновился ты или запускаешь вчерашний файл.
     /// </summary>
     public static string FullVersion =>
-        Commit.Length > 0 ? $"{Version} (сборка {Commit})" : Version;
+        Commit.Length > 0 ? Loc.Get("app.build", Version, Commit) : Version;
 
     private static (string Version, string Commit) Split()
     {

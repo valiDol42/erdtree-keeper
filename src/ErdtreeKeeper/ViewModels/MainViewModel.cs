@@ -39,6 +39,12 @@ public sealed class MainViewModel : ViewModelBase
     public MainViewModel()
     {
         _settings = PortableSettings.Load();
+
+        // Язык: сохранённый выбор, иначе - язык системы.
+        Loc.Current.Language = Enum.TryParse<Lang>(_settings.Values.Language, out var saved)
+            ? saved
+            : Loc.DetectFromSystem();
+
         Log = new ActivityLog();
         _snapshotService = new SnapshotService(Log);
 
@@ -69,7 +75,7 @@ public sealed class MainViewModel : ViewModelBase
         AddAfterCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.WithPairSuffix(SnapshotName, SnapshotNaming.AfterSuffix));
         ClearNameCommand = new RelayCommand(() => SnapshotName = "");
 
-        SnapshotFolder = _settings.Values.SnapshotFolder ?? Path.Combine(PortableSettings.AppFolder, "Снимки");
+        SnapshotFolder = _settings.Values.SnapshotFolder ?? Path.Combine(PortableSettings.AppFolder, Loc.Get("path.snapshots"));
         AutoFolder = _settings.Values.AutoSnapshotFolder
                      ?? Path.Combine(SnapshotFolder, SnapshotService.AutoFolder);
         SnapshotName = _settings.Values.LastSnapshotName ?? "";
@@ -80,14 +86,47 @@ public sealed class MainViewModel : ViewModelBase
         _clock.Tick += (_, _) => OnTick();
         _clock.Start();
 
-        Log.Info($"Настройки: {_settings.Path}");
+        Log.Info(Loc.Get("log.settingsPath", _settings.Path));
         if (!_settings.IsPortable)
         {
-            Log.Warn("Папка программы недоступна для записи, настройки лежат в AppData");
+            Log.Warn(Loc.Get("log.settingsInAppData"));
         }
     }
 
     // ─── Состояние ──────────────────────────────────────────────────────
+
+    /// <summary>Таблица строк для разметки: {Binding L[ключ]}.</summary>
+    public Loc L => Loc.Current;
+
+    /// <summary>Язык интерфейса. Переключается на лету и запоминается.</summary>
+    public bool IsEnglish
+    {
+        get => Loc.Current.IsEnglish;
+        set
+        {
+            var lang = value ? Lang.En : Lang.Ru;
+            if (Loc.Current.Language == lang) return;
+
+            Loc.Current.Language = lang;
+            _settings.Values.Language = lang.ToString();
+            _settings.Save();
+
+            // Строки, собранные в модели, надо пересчитать вручную: они не
+            // проходят через индексатор таблицы.
+            OnPropertyChanged(nameof(IsEnglish));
+            OnPropertyChanged(nameof(CharacterLine));
+            OnPropertyChanged(nameof(PlaceLine));
+            OnPropertyChanged(nameof(SnapshotPreview));
+            OnPropertyChanged(nameof(SelectionSummary));
+            OnPropertyChanged(nameof(DeleteLabel));
+            OnPropertyChanged(nameof(TrackerPitch));
+            OnPropertyChanged(nameof(EmptyStateHint));
+            OnPropertyChanged(nameof(NameSortLabel));
+            OnPropertyChanged(nameof(DateSortLabel));
+            OnPropertyChanged(nameof(SnapshotSources));
+            UpdateFreshness();
+        }
+    }
 
     public ActivityLog Log { get; }
 
@@ -175,15 +214,15 @@ public sealed class MainViewModel : ViewModelBase
             var count = SelectedRows.Count;
             return count switch
             {
-                0 => Snapshots.Count == 0 ? "" : "ничего не выбрано",
-                1 => $"выбран 1 файл из {Snapshots.Count}",
-                _ => $"выбрано {count} {Plural(count, "файл", "файла", "файлов")} из {Snapshots.Count}",
+                0 => Snapshots.Count == 0 ? "" : Loc.Get("list.nothingSelected"),
+                1 => Loc.Get("list.oneSelected", Snapshots.Count),
+                _ => Loc.Get("list.manySelected", count, Loc.Plural(count, "plural.file"), Snapshots.Count),
             };
         }
     }
 
     /// <summary>На кнопке удаления видно, сколько файлов уйдёт.</summary>
-    public string DeleteLabel => SelectedRows.Count > 1 ? $"Удалить ({SelectedRows.Count})" : "Удалить";
+    public string DeleteLabel => SelectedRows.Count > 1 ? Loc.Get("list.deleteCount", SelectedRows.Count) : Loc.Get("list.delete");
 
     private string _snapshotFolder = "";
     public string SnapshotFolder
@@ -271,7 +310,7 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>Что показывает список: отобранные вручную снимки или автосохранения.</summary>
-    public string[] SnapshotSources { get; } = ["Снимки", "Автосохранения"];
+    public string[] SnapshotSources => [Loc.Get("list.manual"), Loc.Get("list.auto")];
 
     private int _snapshotSourceIndex;
     public int SnapshotSourceIndex
@@ -283,6 +322,8 @@ public sealed class MainViewModel : ViewModelBase
             OnPropertyChanged(nameof(ListFolder));
             OnPropertyChanged(nameof(IsAutoFolder));
             OnPropertyChanged(nameof(EmptyStateHint));
+            OnPropertyChanged(nameof(NameSortLabel));
+            OnPropertyChanged(nameof(DateSortLabel));
             RefreshSnapshots();
         }
     }
@@ -324,8 +365,8 @@ public sealed class MainViewModel : ViewModelBase
         RefreshSnapshots();
     }
 
-    public string NameSortLabel => SortLabel("Имя", SnapshotSort.Name);
-    public string DateSortLabel => SortLabel("Изменён", SnapshotSort.Created);
+    public string NameSortLabel => SortLabel(Loc.Get("list.name"), SnapshotSort.Name);
+    public string DateSortLabel => SortLabel(Loc.Get("list.modified"), SnapshotSort.Created);
 
     private string SortLabel(string title, SnapshotSort field) =>
         _sortField == field ? $"{title}  {(_sortDescending ? "↓" : "↑")}" : title;
@@ -339,8 +380,8 @@ public sealed class MainViewModel : ViewModelBase
     };
 
     public string EmptyStateHint => IsAutoFolder
-        ? "Включите автосохранение слева. Снимок появится здесь после того, как игра запишет сейв."
-        : "Сядьте у благодати, чтобы игра записала сейв, задайте имя слева и нажмите «Сделать снимок».";
+        ? Loc.Get("list.emptyAuto")
+        : Loc.Get("list.emptyManual");
 
     private string _snapshotName = "";
     public string SnapshotName
@@ -369,7 +410,7 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    private string _status = "Готово";
+    private string _status = Loc.Get("status.ready");
     public string Status { get => _status; private set => Set(ref _status, value); }
 
     private IBrush _statusBrush = Brush("TextSecondaryBrush");
@@ -399,8 +440,8 @@ public sealed class MainViewModel : ViewModelBase
             _settings.Save();
             ResetWriteTracking();
             Log.Info(value
-                ? "Автоснимки включены: снимок делается после того, как игра запишет сейв"
-                : "Автоснимки выключены");
+                ? Loc.Get("log.autoOn")
+                : Loc.Get("log.autoOff"));
         }
     }
 
@@ -418,7 +459,7 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
-    private string _freshnessText = "Сейв не выбран";
+    private string _freshnessText = Loc.Get("fresh.none");
     public string FreshnessText { get => _freshnessText; private set => Set(ref _freshnessText, value); }
 
     public IBrush FreshnessBrush => FreshnessLevel switch
@@ -442,8 +483,8 @@ public sealed class MainViewModel : ViewModelBase
     public bool HasContext => SaveContext is not null;
 
     public string CharacterLine => SaveContext is null
-        ? "Нажмите \"Прочитать сейв\", чтобы увидеть персонажа"
-        : $"{SaveContext.Character.Name}  ·  {SaveContext.Character.Level} ур.  ·  {SaveContext.Character.ClassName}";
+        ? Loc.Get("source.readHint")
+        : $"{SaveContext.Character.Name}  ·  {Loc.Get("card.levelShort", SaveContext.Character.Level)}  ·  {SaveContext.Character.ClassName}";
 
     public string PlaceLine => SaveContext?.Summary ?? "";
 
@@ -452,10 +493,10 @@ public sealed class MainViewModel : ViewModelBase
         get
         {
             var file = SnapshotNaming.ToFileName(SnapshotName, Extension);
-            if (file.Length == 0) return "Введите имя снимка";
+            if (file.Length == 0) return Loc.Get("name.enter");
 
             var full = Path.Combine(SnapshotFolder, file);
-            return File.Exists(full) ? $"Будет перезаписан: {file}" : $"Будет создан: {file}";
+            return File.Exists(full) ? Loc.Get("name.willOverwrite", file) : Loc.Get("name.willCreate", file);
         }
     }
 
@@ -472,27 +513,10 @@ public sealed class MainViewModel : ViewModelBase
         {
             var graces = MapPoints.Graces.Count;
             var bosses = MapPoints.Bosses.Count;
-            return $"{graces} {Plural(graces, "место", "места", "мест")} благодати "
-                   + $"и {bosses} {Plural(bosses, "босс", "босса", "боссов")} на карте. "
-                   + "Прогресс подтягивается из вашего сохранения.";
+            return Loc.Get("tracker.pitch",
+                graces, Loc.Plural(graces, "plural.place"),
+                bosses, Loc.Plural(bosses, "plural.boss"));
         }
-    }
-
-    /// <summary>
-    /// Русское склонение по числу. Числа берутся из справочника и меняются
-    /// вместе с ним, поэтому форму слова нельзя вписать руками.
-    /// </summary>
-    private static string Plural(int count, string one, string few, string many)
-    {
-        // 11-14 - исключение: "одиннадцать мест", а не "одиннадцать место".
-        if (count % 100 is >= 11 and <= 14) return many;
-
-        return (count % 10) switch
-        {
-            1 => one,
-            2 or 3 or 4 => few,
-            _ => many,
-        };
     }
 
     public string SettingsPath => _settings.Path;
@@ -503,7 +527,7 @@ public sealed class MainViewModel : ViewModelBase
 
     /// <summary>Steam синхронизирует папку сохранений с облаком - об этом надо предупредить.</summary>
     public string? SteamCloudWarning => SelectedAccount?.Account.HasSteamCloudMarker == true
-        ? "У этого аккаунта включена синхронизация Steam Cloud. Восстанавливайте сейв только при полностью закрытой игре, иначе Steam может вернуть облачную версию."
+        ? Loc.Get("warn.steamCloud")
         : null;
 
     private string Extension =>
@@ -560,16 +584,23 @@ public sealed class MainViewModel : ViewModelBase
     {
         RefreshAccounts();
         RefreshSnapshots();
-        Say("Список обновлён", "TextSecondaryBrush");
+        Say(Loc.Get("status.listRefreshed"), "TextSecondaryBrush");
         await Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Где искать сохранения. В работе это всегда папка игры; отдельное
+    /// свойство нужно инструменту снимков экрана, чтобы показывать вымышленный
+    /// аккаунт вместо настоящего.
+    /// </summary>
+    public string SavesRoot { get; set; } = GameSaves.DefaultRoot;
 
     public void RefreshAccounts()
     {
         var wanted = SelectedAccount?.Account.SteamId ?? _settings.Values.LastAccountId;
 
         Accounts.Clear();
-        foreach (var account in GameSaves.FindAccounts())
+        foreach (var account in GameSaves.FindAccounts(SavesRoot))
         {
             _settings.Values.Aliases.TryGetValue(account.SteamId, out var alias);
             Accounts.Add(new AccountItem(account, alias));
@@ -577,13 +608,13 @@ public sealed class MainViewModel : ViewModelBase
 
         if (Accounts.Count == 0)
         {
-            Say($"Папка сохранений не найдена: {GameSaves.DefaultRoot}", "DangerBrush");
-            Log.Warn("Сохранения Elden Ring не найдены", GameSaves.DefaultRoot);
+            Say(Loc.Get("status.noSaveFolder", GameSaves.DefaultRoot), "DangerBrush");
+            Log.Warn(Loc.Get("log.noSaves"), GameSaves.DefaultRoot);
             return;
         }
 
         SelectedAccount = Accounts.FirstOrDefault(a => a.Account.SteamId == wanted) ?? Accounts[0];
-        Log.Read($"Найдено аккаунтов: {Accounts.Count}", GameSaves.DefaultRoot);
+        Log.Read(Loc.Get("log.accountsFound", Accounts.Count), GameSaves.DefaultRoot);
     }
 
     private void RefreshSaveFiles()
@@ -636,11 +667,11 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSaveFile is null) return;
 
         IsBusy = true;
-        Say("Читаю сейв...", "TextSecondaryBrush");
+        Say(Loc.Get("status.reading"), "TextSecondaryBrush");
         try
         {
             var path = SelectedSaveFile.Path;
-            Log.Read("Разбираю сохранение", path);
+            Log.Read(Loc.Get("log.parsingSave"), path);
 
             var context = await Task.Run(async () =>
             {
@@ -649,13 +680,13 @@ public sealed class MainViewModel : ViewModelBase
             });
 
             SaveContext = context;
-            Say(context is null ? "Персонажи в сейве не найдены" : "Сейв прочитан",
+            Say(context is null ? Loc.Get("status.noCharacters") : Loc.Get("status.saveRead"),
                 context is null ? "WarnBrush" : "FreshBrush");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.Error($"Не удалось прочитать сейв: {ex.Message}", SelectedSaveFile.Path);
-            Say($"Не удалось прочитать сейв: {ex.Message}", "DangerBrush");
+            Log.Error(Loc.Get("err.readSave", ex.Message), SelectedSaveFile.Path);
+            Say(Loc.Get("err.readSave", ex.Message), "DangerBrush");
         }
         finally
         {
@@ -669,7 +700,7 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSaveFile is null) return;
 
         IsBusy = true;
-        Say("Проверяю целостность...", "TextSecondaryBrush");
+        Say(Loc.Get("status.checking"), "TextSecondaryBrush");
         try
         {
             var path = SelectedSaveFile.Path;
@@ -680,15 +711,15 @@ public sealed class MainViewModel : ViewModelBase
             });
 
             var text = BuildIntegrityReport(report, SelectedSaveFile.Name);
-            Log.Read(report.AllOk ? "Целостность в порядке" : $"Повреждённых блоков: {report.BadCount}", path);
-            Say(report.AllOk ? "Сейв целый: все контрольные суммы сошлись" : $"Повреждённых блоков: {report.BadCount}",
+            Log.Read(report.AllOk ? Loc.Get("log.integrityOk") : Loc.Get("status.damagedBlocks", report.BadCount), path);
+            Say(report.AllOk ? Loc.Get("status.integrityOk") : Loc.Get("status.damagedBlocks", report.BadCount),
                 report.AllOk ? "FreshBrush" : "DangerBrush");
 
-            if (ShowReportAsync is not null) await ShowReportAsync("Проверка целостности", text);
+            if (ShowReportAsync is not null) await ShowReportAsync(Loc.Get("dlg.integrityTitle"), text);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Say($"Не удалось проверить: {ex.Message}", "DangerBrush");
+            Say(Loc.Get("err.check", ex.Message), "DangerBrush");
         }
         finally
         {
@@ -698,37 +729,37 @@ public sealed class MainViewModel : ViewModelBase
 
     private static string BuildIntegrityReport(Sl2File.IntegrityReport report, string fileName)
     {
-        var lines = new List<string> { $"Файл: {fileName}", "" };
+        var lines = new List<string> { Loc.Get("report.file", fileName), "" };
 
         if (!report.FileRecognised)
         {
-            lines.Add("Это не похоже на сохранение Elden Ring: нет подписи BND4 в начале файла.");
+            lines.Add(Loc.Get("report.notEldenRing"));
             return string.Join(Environment.NewLine, lines);
         }
 
         lines.Add(report.SizeAsExpected
-            ? $"Размер: {report.ActualSize:N0} байт - как у обычного сейва."
-            : $"Размер: {report.ActualSize:N0} байт - отличается от обычных {Sl2File.VanillaSize:N0}.");
+            ? Loc.Get("report.sizeNormal", report.ActualSize.ToString("N0"))
+            : Loc.Get("report.sizeOdd", report.ActualSize.ToString("N0"), Sl2File.VanillaSize.ToString("N0")));
         lines.Add("");
-        lines.Add("Игра проверяет каждый блок по контрольной сумме MD5 и отказывается");
-        lines.Add("загружать блок, если сумма не сошлась. Ниже - результат по каждому.");
+        lines.Add(Loc.Get("report.howItWorks1"));
+        lines.Add(Loc.Get("report.howItWorks2"));
         lines.Add("");
 
         foreach (var block in report.Blocks)
         {
             lines.Add(block.Ok
-                ? $"  {block.Title,-10}  в порядке"
-                : $"  {block.Title,-10}  ПОВРЕЖДЁН  (записано {block.Stored[..8]}, посчитано {block.Actual[..8]})");
+                ? $"  {block.Title,-10}  " + Loc.Get("report.blockOk")
+                : $"  {block.Title,-10}  " + Loc.Get("report.blockBad", block.Stored[..8], block.Actual[..8]));
         }
 
         lines.Add("");
         lines.Add(report.AllOk
-            ? "Итог: файл целый, игра его загрузит."
-            : $"Итог: повреждённых блоков {report.BadCount}. Пустые слоты в этом списке - это нормально,");
+            ? Loc.Get("report.verdictOk")
+            : Loc.Get("report.verdictBad", report.BadCount));
 
         if (!report.AllOk)
         {
-            lines.Add("но повреждённый блок с персонажем игра покажет как \"Save data is corrupt\".");
+            lines.Add(Loc.Get("report.verdictBad2"));
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -748,14 +779,14 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (ConfirmAsync is null) return;
             overwrite = await ConfirmAsync(
-                "Перезаписать снимок?",
-                $"Файл {fileName} уже есть в папке снимков. Его содержимое будет заменено.",
-                "Перезаписать");
-            if (!overwrite) { Say("Отменено", "TextSecondaryBrush"); return; }
+                Loc.Get("dlg.overwriteTitle"),
+                Loc.Get("dlg.overwriteBody", fileName),
+                Loc.Get("dlg.overwrite"));
+            if (!overwrite) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
         }
 
         IsBusy = true;
-        Say("Делаю снимок...", "TextSecondaryBrush");
+        Say(Loc.Get("status.snapshotting"), "TextSecondaryBrush");
         try
         {
             var result = await _snapshotService.CreateAsync(
@@ -778,23 +809,22 @@ public sealed class MainViewModel : ViewModelBase
         var target = Path.Combine(SelectedAccount.Account.Path, targetName);
 
         var warning = GameSaves.IsGameRunning()
-            ? "\n\nИгра сейчас запущена. Закройте её полностью: она держит сохранение в памяти и перезапишет файл своим состоянием при выходе."
+            ? "\n\n" + Loc.Get("warn.gameRunning")
             : "";
 
         var cloud = SelectedAccount.Account.HasSteamCloudMarker
-            ? "\n\nУ аккаунта включён Steam Cloud. Если игра или Steam запущены, облако может вернуть прежнюю версию."
+            ? "\n\n" + Loc.Get("warn.cloudRestore")
             : "";
 
         var confirmed = await ConfirmAsync(
-            "Восстановить сохранение в игру?",
-            $"Снимок: {SelectedSnapshot.Name}\nЗаменит файл: {target}\n\n"
-            + "Текущий сейв будет сохранён в резервную копию - это делается всегда."
+            Loc.Get("dlg.restoreTitle"),
+            Loc.Get("dlg.restoreBody", SelectedSnapshot.Name, target)
             + warning + cloud,
-            "Восстановить");
-        if (!confirmed) { Say("Отменено", "TextSecondaryBrush"); return; }
+            Loc.Get("list.restoreVerb"));
+        if (!confirmed) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
 
         IsBusy = true;
-        Say("Восстанавливаю...", "TextSecondaryBrush");
+        Say(Loc.Get("status.restoring"), "TextSecondaryBrush");
         try
         {
             var result = await _snapshotService.RestoreAsync(SelectedSnapshot.Path, target);
@@ -826,17 +856,17 @@ public sealed class MainViewModel : ViewModelBase
 
         const int shown = 12;
         var names = string.Join(NewLine, doomed.Take(shown).Select(s => "  " + s.Name));
-        if (doomed.Count > shown) names += NewLine + $"  ... и ещё {doomed.Count - shown}";
+        if (doomed.Count > shown) names += NewLine + "  " + Loc.Get("dlg.andMore", doomed.Count - shown);
 
         var title = doomed.Count == 1
-            ? "Удалить снимок?"
-            : $"Удалить {doomed.Count} {Plural(doomed.Count, "снимок", "снимка", "снимков")}?";
+            ? Loc.Get("dlg.deleteOneTitle")
+            : Loc.Get("dlg.deleteManyTitle", doomed.Count, Loc.Plural(doomed.Count, "plural.snapshot"));
 
         var confirmed = await ConfirmAsync(
             title,
-            names + NewLine + NewLine + "Файлы будут удалены с диска безвозвратно.",
-            doomed.Count == 1 ? "Удалить" : $"Удалить {doomed.Count}");
-        if (!confirmed) { Say("Отменено", "TextSecondaryBrush"); return; }
+            names + NewLine + NewLine + Loc.Get("dlg.deleteBody"),
+            doomed.Count == 1 ? Loc.Get("list.delete") : Loc.Get("dlg.deleteMany", doomed.Count));
+        if (!confirmed) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
 
         var removed = 0;
         var failed = new List<string>();
@@ -851,11 +881,11 @@ public sealed class MainViewModel : ViewModelBase
 
         if (failed.Count == 0)
         {
-            Say(removed == 1 ? "Снимок удалён" : $"Удалено файлов: {removed}", "TextSecondaryBrush");
+            Say(removed == 1 ? Loc.Get("status.deletedOne") : Loc.Get("status.deletedMany", removed), "TextSecondaryBrush");
         }
         else
         {
-            Say($"Удалено {removed}, не удалось удалить {failed.Count}: {failed[0]}", "DangerBrush");
+            Say(Loc.Get("status.deletedPartly", removed, failed.Count, failed[0]), "DangerBrush");
         }
 
         await Task.CompletedTask;
@@ -866,7 +896,7 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSnapshot is null || PromptAsync is null) return;
 
         var current = SelectedSnapshot.Name;
-        var answer = await PromptAsync("Переименовать снимок", "Новое имя файла", current);
+        var answer = await PromptAsync(Loc.Get("dlg.renameTitle"), Loc.Get("dlg.renameBody"), current);
         if (string.IsNullOrWhiteSpace(answer) || answer == current) return;
 
         var newName = SnapshotNaming.ToFileName(answer, Path.GetExtension(current));
@@ -880,8 +910,8 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedAccount is null || PromptAsync is null) return;
 
         var answer = await PromptAsync(
-            "Подпись аккаунта",
-            $"Как называть аккаунт {SelectedAccount.Account.SteamId}?",
+            Loc.Get("dlg.aliasTitle"),
+            Loc.Get("dlg.aliasBody", SelectedAccount.Account.SteamId),
             SelectedAccount.Alias ?? "");
         if (answer is null) return;
 
@@ -897,26 +927,26 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (PickFolderAsync is null) return;
 
-        var picked = await PickFolderAsync("Куда складывать снимки", SnapshotFolder);
+        var picked = await PickFolderAsync(Loc.Get("dlg.pickSnapshotFolder"), SnapshotFolder);
         if (string.IsNullOrWhiteSpace(picked)) return;
 
         if (Reject(picked)) return;
 
         SnapshotFolder = picked;
-        Log.Info("Папка снимков изменена", picked);
+        Log.Info(Loc.Get("log.snapFolderChanged"), picked);
     }
 
     private async Task PickAutoFolderAsync()
     {
         if (PickFolderAsync is null) return;
 
-        var picked = await PickFolderAsync("Куда складывать автосохранения", AutoFolder);
+        var picked = await PickFolderAsync(Loc.Get("dlg.pickAutoFolder"), AutoFolder);
         if (string.IsNullOrWhiteSpace(picked)) return;
 
         if (Reject(picked)) return;
 
         AutoFolder = picked;
-        Log.Info("Папка автосохранений изменена", picked);
+        Log.Info(Loc.Get("log.autoFolderChanged"), picked);
     }
 
     /// <summary>
@@ -930,8 +960,8 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (!GameSaves.IsInsideGameFolder(folder)) return false;
 
-        Log.Warn("Выбрана папка игры - отклонено", folder);
-        Say("Это папка сохранений игры. Выберите другую - иначе снимки смешаются с сейвами", "DangerBrush");
+        Log.Warn(Loc.Get("log.gameFolderRejected"), folder);
+        Say(Loc.Get("status.gameFolderRejected"), "DangerBrush");
         return true;
     }
 
@@ -939,17 +969,17 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SaveFileAsync is null) return;
 
-        var path = await SaveFileAsync("Сохранить журнал", $"erdtree-keeper-log-{DateTime.Now:yyyy-MM-dd}.txt");
+        var path = await SaveFileAsync(Loc.Get("dlg.saveLog"), $"erdtree-keeper-log-{DateTime.Now:yyyy-MM-dd}.txt");
         if (string.IsNullOrWhiteSpace(path)) return;
 
         try
         {
             await Log.ExportAsync(path);
-            Say("Журнал сохранён", "FreshBrush");
+            Say(Loc.Get("status.logSaved"), "FreshBrush");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Say($"Не удалось сохранить журнал: {ex.Message}", "DangerBrush");
+            Say(Loc.Get("err.logSave", ex.Message), "DangerBrush");
         }
     }
 
@@ -957,20 +987,20 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SaveContext is null)
         {
-            Say("Сначала прочитайте сейв", "WarnBrush");
+            Say(Loc.Get("status.readFirst"), "WarnBrush");
             return;
         }
 
         var point = useBoss ? SaveContext.Boss : SaveContext.Location;
         if (point is null)
         {
-            Say(useBoss ? "Рядом нет арены босса" : "Локация не определилась", "WarnBrush");
+            Say(useBoss ? Loc.Get("status.noBossNearby") : Loc.Get("status.noLocation"), "WarnBrush");
             return;
         }
 
         var name = SnapshotName;
         if (SaveContext.IsDlc) name = SnapshotNaming.EnsureDlcTag(name);
-        SnapshotName = SnapshotNaming.Append(name, point.Ru);
+        SnapshotName = SnapshotNaming.Append(name, point.Display);
     }
 
     private void DismissOnboarding()
@@ -993,7 +1023,7 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSaveFile is null || !File.Exists(SelectedSaveFile.Path))
         {
             FreshnessLevel = Freshness.Unknown;
-            FreshnessText = "Сейв не выбран";
+            FreshnessText = Loc.Get("fresh.none");
             return;
         }
 
@@ -1003,7 +1033,7 @@ public sealed class MainViewModel : ViewModelBase
 
         var age = DateTime.Now - written;
 
-        FreshnessText = $"Записан {written:dd.MM.yyyy HH:mm:ss}  ·  {Humanize(age)}";
+        FreshnessText = Loc.Get("fresh.written", written.ToString("dd.MM.yyyy HH:mm:ss"), Humanize(age));
 
         // Игра сбрасывает сейв на диск не мгновенно. Пока запись не случилась,
         // копия будет содержать состояние ДО последних событий.
@@ -1079,14 +1109,16 @@ public sealed class MainViewModel : ViewModelBase
             if (result.Success)
             {
                 var removed = _snapshotService.Rotate(folder, AutoKeep);
-                Say(removed > 0 ? $"Автоснимок: {name} (удалено старых: {removed})" : $"Автоснимок: {name}",
+                Say(removed > 0
+                        ? Loc.Get("status.autoSnapRotated", name, removed)
+                        : Loc.Get("status.autoSnap", name),
                     "FreshBrush");
                 RefreshSnapshots();
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.Error($"Автоснимок не удался: {ex.Message}", path);
+            Log.Error(Loc.Get("err.autoSnap", ex.Message), path);
         }
     }
 
@@ -1124,10 +1156,10 @@ public sealed class MainViewModel : ViewModelBase
 
     private static string Humanize(TimeSpan span)
     {
-        if (span.TotalSeconds < 60) return $"{span.TotalSeconds:N0} сек назад";
-        if (span.TotalMinutes < 60) return $"{span.TotalMinutes:N0} мин назад";
-        if (span.TotalHours < 24) return $"{span.TotalHours:N0} ч назад";
-        return $"{span.TotalDays:N0} дн назад";
+        if (span.TotalSeconds < 60) return Loc.Get("fresh.secondsAgo", span.TotalSeconds.ToString("N0"));
+        if (span.TotalMinutes < 60) return Loc.Get("fresh.minutesAgo", span.TotalMinutes.ToString("N0"));
+        if (span.TotalHours < 24) return Loc.Get("fresh.hoursAgo", span.TotalHours.ToString("N0"));
+        return Loc.Get("fresh.daysAgo", span.TotalDays.ToString("N0"));
     }
 
     private static void OpenInExplorer(string? path)

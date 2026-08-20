@@ -18,7 +18,12 @@ public class SnapshotServiceTests : IDisposable
 
     private readonly SnapshotService _service = new(new ActivityLog());
 
-    public SnapshotServiceTests() => Directory.CreateDirectory(_root);
+    public SnapshotServiceTests()
+    {
+        // Сообщения об операциях переводятся, а сверяются здесь русские.
+        Loc.Current.Language = Lang.Ru;
+        Directory.CreateDirectory(_root);
+    }
 
     public void Dispose()
     {

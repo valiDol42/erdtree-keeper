@@ -18,9 +18,13 @@ public sealed record SaveContext(
     {
         get
         {
-            var where = Location is null ? "неизвестно где" : $"рядом: {Location.Ru} ({Location.Distance} м)";
-            var boss = Boss is null ? "боссов рядом нет" : $"босс: {Boss.Ru} ({Boss.Distance} м)";
-            var dlc = IsDlc ? "Земли Теней  ·  " : "";
+            var where = Location is null
+                ? Loc.Get("ctx.nowhere")
+                : Loc.Get("ctx.near", Location.Display, Location.Distance);
+            var boss = Boss is null
+                ? Loc.Get("ctx.noBoss")
+                : Loc.Get("ctx.boss", Boss.Display, Boss.Distance);
+            var dlc = IsDlc ? Loc.Get("ctx.dlc") + "  ·  " : "";
             return $"{dlc}{where}  ·  {boss}";
         }
     }
