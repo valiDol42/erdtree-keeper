@@ -192,7 +192,7 @@ public sealed class Loc : INotifyPropertyChanged
         ["auto.title"] = ("Автосохранение", "Autosave"),
         ["auto.explain"] = (
             "Снимок делается по факту записи сейва игрой, а не по расписанию: копия, снятая в момент записи, была бы обрывком. Указанные минуты - нижняя граница частоты, чаще этого снимок не сработает.",
-            "A snapshot is taken when the game finishes writing the save, not on a schedule: a copy caught mid-write would be a stump. The minutes below are a floor on frequency, not a timer."),
+            "A snapshot is taken when the game finishes writing the save, not on a schedule: a copy caught mid-write would be half a file. The minutes below are a floor on frequency, not a timer."),
         ["auto.interval"] = ("Не чаще одного снимка в", "No more than one snapshot every"),
         ["auto.minutes"] = ("мин", "min"),
         ["auto.keep"] = ("Хранить последних", "Keep the most recent"),
@@ -685,7 +685,7 @@ public sealed class Loc : INotifyPropertyChanged
             "Verdict: the file is intact, the game will load it."),
         ["report.verdictBad"] = (
             "Итог: повреждённых блоков {0}. Пустые слоты в этом списке - это нормально,",
-            "Verdict: {0} damaged blocks. Empty slots in this list are normal,"),
+            "Verdict: damaged blocks: {0}. Empty slots in this list are normal,"),
         ["report.verdictBad2"] = (
             "но повреждённый блок с персонажем игра покажет как \"Save data is corrupt\".",
             "but a damaged block with a character shows up in the game as \"Save data is corrupt\"."),

@@ -127,7 +127,7 @@ static void Shoot(string outputDir, int width, int height)
         "05-о-программе.png", outputDir);
 
     Capture(
-        Dialogs.CreateReportWindow("Проверка целостности", SampleReport()),
+        Dialogs.CreateReportWindow(Loc.Get("dlg.integrityTitle"), SampleReport()),
         "05-проверка-целостности.png", outputDir);
 
     Capture(
@@ -166,21 +166,24 @@ static void UseFakeAccount(MainViewModel model)
     model.RefreshAccounts();
 }
 
+// Образец отчёта собирается из тех же строк, что и настоящий, - иначе на
+// английском снимке экрана оказался бы русский текст.
 static string SampleReport() => string.Join(Environment.NewLine,
 [
-    "Файл: ER0000.sl2",
+    Loc.Get("report.file", "ER0000.sl2"),
     "",
-    "Размер: 28 967 888 байт - как у обычного сейва.",
+    Loc.Get("report.sizeNormal", "28 967 888"),
     "",
-    "Игра проверяет каждый блок по контрольной сумме MD5 и отказывается",
-    "загружать блок, если сумма не сошлась. Ниже - результат по каждому.",
+    Loc.Get("report.howItWorks1"),
+    Loc.Get("report.howItWorks2"),
     "",
-    "  Слот 1      в порядке",
-    "  Слот 2      в порядке",
-    "  Слот 3      ПОВРЕЖДЁН  (записано 5b8259aa, посчитано 8354dcaa)",
-    "  Профиль     в порядке",
+    $"  {Loc.Get("block.slot", 1),-10}  " + Loc.Get("report.blockOk"),
+    $"  {Loc.Get("block.slot", 2),-10}  " + Loc.Get("report.blockOk"),
+    $"  {Loc.Get("block.slot", 3),-10}  " + Loc.Get("report.blockBad", "5b8259aa", "8354dcaa"),
+    $"  {Loc.Get("block.profile"),-10}  " + Loc.Get("report.blockOk"),
     "",
-    "Итог: повреждённых блоков 1.",
+    Loc.Get("report.verdictBad", 1),
+    Loc.Get("report.verdictBad2"),
 ]);
 
 static void Capture(Window window, string name, string outputDir, Action<Window>? afterShow = null)
