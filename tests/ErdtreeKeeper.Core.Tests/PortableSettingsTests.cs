@@ -186,6 +186,11 @@ public class PortableSettingsTests : IDisposable
     public void Reports_what_is_actually_on_disk()
     {
         var settings = PortableSettings.LoadFrom(_folder);
+
+        // Чтение настроек применяет язык, а без файла берёт его у системы -
+        // на англоязычной машине строки ниже были бы английскими.
+        Loc.Current.Language = Lang.Ru;
+
         Assert.Contains("файла ещё нет", settings.DescribeFile());
 
         settings.Save();
