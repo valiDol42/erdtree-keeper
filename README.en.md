@@ -10,9 +10,9 @@ tracker.
 
 One portable exe. Settings sit next to it. The program does not go online.
 
-The interface comes in Russian and English - the `EN` switch in the title bar changes it
-without a restart, and the choice is remembered. On first launch the language follows the
-system.
+The interface comes in Russian and English - the `RU | EN` switch in the title bar changes
+it without a restart, and the choice is remembered. On first launch the language follows
+the system.
 
 ---
 
@@ -130,8 +130,8 @@ can be given a human name instead of a long number.
 
 **Seamless Co-op.** `.co2` files are supported alongside the ordinary ones.
 
-**Two languages.** Russian and English, switched by the `EN` button in the title bar. The
-choice is saved; on first launch the language follows the system.
+**Two languages.** Russian and English, switched by the `RU | EN` control in the title
+bar. The choice is saved; on first launch the language follows the system.
 
 ---
 

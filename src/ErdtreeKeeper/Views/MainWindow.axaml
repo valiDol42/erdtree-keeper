@@ -37,10 +37,13 @@
                      объяснением, как их проверить, а не висит без контекста. -->
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <!-- Переключатель языка: RU/EN без перезапуска -->
-                    <ToggleButton Classes="ghost" Content="EN"
-                                  ToolTip.Tip="{Binding L[app.language]}"
-                                  IsChecked="{Binding IsEnglish}" />
+                    <!-- Переключатель языка: без перезапуска, выбор запоминается -->
+                    <Border Classes="segment" ToolTip.Tip="{Binding L[app.language]}" Margin="0,0,6,0">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton Classes="lang" Content="RU" IsChecked="{Binding IsRussian}" />
+                            <ToggleButton Classes="lang" Content="EN" IsChecked="{Binding IsEnglish}" />
+                        </StackPanel>
+                    </Border>
                     <Button Classes="ghost" Content="{Binding L[app.whatItDoes]}" Click="OnShowTransparency" />
                     <Button Classes="ghost" Content="{Binding L[app.about]}" Click="OnShowAbout" />
                 </StackPanel>

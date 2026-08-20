@@ -124,18 +124,24 @@ public sealed class PortableSettings
                      ?? (portable ? null : ReadOrDefault(portablePath))
                      ?? new Settings();
 
-        // Язык применяется здесь, а не в модели окна: от него зависит имя
-        // папки по умолчанию, которое подставляется строкой ниже. Сохранённый
-        // выбор важнее языка системы - иначе переключатель в окне сбрасывался
-        // бы при каждом запуске.
-        Loc.Current.Language = Enum.TryParse<Lang>(values.Language, out var saved)
-            ? saved
-            : Loc.DetectFromSystem();
-
-        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, Loc.Get("path.snapshots"));
+        // Имя папки по умолчанию берётся из перевода, поэтому язык нужен уже
+        // здесь. Текущий язык приложения при этом не трогается: чтение
+        // настроек не должно переключать язык всему окну - его применяет тот,
+        // кто эти настройки заказывал.
+        var language = LanguageOf(values);
+        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, Loc.Get(language, "path.snapshots"));
 
         return new PortableSettings(path, values, portable);
     }
+
+    /// <summary>
+    /// Язык из настроек, а без записи - язык системы. Применить его к
+    /// интерфейсу должен вызывающий: один раз, при запуске.
+    /// </summary>
+    public Lang Language => LanguageOf(Values);
+
+    private static Lang LanguageOf(Settings values) =>
+        Enum.TryParse<Lang>(values.Language, out var saved) ? saved : Loc.DetectFromSystem();
 
     public void Save()
     {

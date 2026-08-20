@@ -257,6 +257,47 @@
         <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrightBrush}" />
     </Style>
 
+    <!-- ─── Переключатель языка ─────────────────────────────────────────── -->
+    <!-- Две половины в одной рамке: видно оба языка и какой сейчас выбран. -->
+
+    <Style Selector="Border.segment">
+        <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="ToggleButton.lang">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <Style Selector="ToggleButton.lang:pointerover /template/ ContentPresenter">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.lang:checked /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentWashBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentDimBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.lang:checked:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentWashBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentBrightBrush}" />
+    </Style>
+
     <!-- ─── Поля ввода ──────────────────────────────────────────────────── -->
 
     <Style Selector="TextBox">

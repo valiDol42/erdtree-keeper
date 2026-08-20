@@ -180,6 +180,50 @@ public class LocalizationTests : IDisposable
         Assert.Equal(expected, Loc.FromCultureName(name));
     }
 
+    /// <summary>
+    /// Строка на заданном языке достаётся без переключения текущего - иначе
+    /// чтение настроек меняло бы язык всему окну.
+    /// </summary>
+    [Fact]
+    public void AskingForOneLanguageLeavesTheCurrentAlone()
+    {
+        Loc.Current.Language = Lang.Ru;
+
+        Assert.Equal(Loc.Pair("path.snapshots").En, Loc.Get(Lang.En, "path.snapshots"));
+        Assert.Equal(Loc.Pair("path.snapshots").Ru, Loc.Get(Lang.Ru, "path.snapshots"));
+        Assert.Equal(Lang.Ru, Loc.Current.Language);
+    }
+
+    /// <summary>
+    /// Разметка привязана к снимку таблицы: он должен содержать все ключи и
+    /// строки именно того языка, который просили.
+    /// </summary>
+    [Theory]
+    [InlineData(Lang.Ru)]
+    [InlineData(Lang.En)]
+    public void SnapshotHoldsEveryKeyInOneLanguage(Lang language)
+    {
+        var snapshot = Loc.Snapshot(language);
+
+        Assert.Equal(Loc.Keys.Count, snapshot.Count);
+        foreach (var key in Loc.Keys)
+        {
+            var (ru, en) = Loc.Pair(key);
+            Assert.Equal(language == Lang.En ? en : ru, snapshot[key]);
+        }
+    }
+
+    /// <summary>Снимок без аргумента берёт текущий язык - его и показывает окно.</summary>
+    [Fact]
+    public void SnapshotFollowsTheCurrentLanguage()
+    {
+        Loc.Current.Language = Lang.En;
+        Assert.Equal(Loc.Pair("app.close").En, Loc.Snapshot()["app.close"]);
+
+        Loc.Current.Language = Lang.Ru;
+        Assert.Equal(Loc.Pair("app.close").Ru, Loc.Snapshot()["app.close"]);
+    }
+
     [Fact]
     public void DetectingSystemLanguageDoesNotThrow()
     {

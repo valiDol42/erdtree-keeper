@@ -104,6 +104,33 @@ static void Shoot(string outputDir, int width, int height)
         new MainWindow { DataContext = auto, Width = width, Height = height },
         "08-сортировка-по-имени.png", outputDir);
 
+    // Переключение языка в уже открытом окне. Снимки выше делаются на модели,
+    // созданной сразу на нужном языке, и не проверяют главного: что окно
+    // переключается целиком, а не наполовину.
+    var switched = NewModel();
+    switched.DismissOnboardingCommand.Execute(null);
+    UseFakeAccount(switched);
+    switched.AnalyzeCommand.Execute(null);
+    for (var i = 0; i < 30 && switched.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+    var switchedWindow = new MainWindow { DataContext = switched, Width = width, Height = height };
+    Capture(switchedWindow, "11-язык-переключён.png", outputDir, _ =>
+    {
+        // Половины переключателя ведут себя как радиокнопки: язык включают,
+        // а не выключают - поэтому щёлкаем именно по нужной.
+        if (switched.IsEnglish) switched.IsRussian = true;
+        else switched.IsEnglish = true;
+    });
+    Console.WriteLine($"   после переключения: язык {(switched.IsEnglish ? "En" : "Ru")}, "
+                      + $"колонка \"{switched.NameSortLabel}\", кнопка \"{switched.DeleteLabel}\", "
+                      + $"источники [{string.Join(", ", switched.SnapshotSources)}]");
+
+    // Выбор должен пережить перезапуск: следующая модель читает его из файла
+    // настроек, а не из того, что осталось в памяти.
+    var chosen = switched.IsEnglish;
+    var reopened = new MainViewModel();
+    Console.WriteLine($"   после перезапуска: {(reopened.IsEnglish ? "En" : "Ru")}"
+                      + $" (выбирали {(chosen ? "En" : "Ru")})");
+
     // Журнал открыт: левая колонка не должна от этого сжиматься.
     var withLog = NewModel();
     withLog.DismissOnboardingCommand.Execute(null);

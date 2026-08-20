@@ -97,7 +97,42 @@ public class PortableSettingsTests : IDisposable
         var settings = PortableSettings.LoadFrom(_folder);
 
         Assert.Equal(Path.Combine(_folder, folder), settings.Values.SnapshotFolder);
-        Assert.Equal(language, Loc.Current.Language.ToString());
+        Assert.Equal(language, settings.Language.ToString());
+    }
+
+    /// <summary>
+    /// Чтение настроек не переключает язык приложения. Когда переключало,
+    /// любой повторный вызов менял язык уже открытому окну, и половина строк
+    /// оставалась на прежнем: разметка обновлялась, а значения свойств нет.
+    /// Язык применяет тот, кто настройки заказывал, и делает это один раз.
+    /// </summary>
+    [Theory]
+    [InlineData("Ru")]
+    [InlineData("En")]
+    public void Reading_settings_does_not_switch_the_language(string language)
+    {
+        File.WriteAllText(
+            Path.Combine(_folder, "erdtree-keeper.settings.json"),
+            $"{{\"Language\":\"{language}\"}}");
+
+        Loc.Current.Language = Lang.Ru;
+        var settings = PortableSettings.LoadFrom(_folder);
+
+        Assert.Equal(Lang.Ru, Loc.Current.Language);
+        Assert.Equal(language, settings.Language.ToString());
+    }
+
+    /// <summary>Выбор языка переживает перезапуск - он лежит в том же файле.</summary>
+    [Fact]
+    public void The_chosen_language_survives_a_restart()
+    {
+        var first = PortableSettings.LoadFrom(_folder);
+        first.Values.Language = nameof(Lang.En);
+        first.Save();
+
+        var second = PortableSettings.LoadFrom(_folder);
+
+        Assert.Equal(Lang.En, second.Language);
     }
 
     [Fact]

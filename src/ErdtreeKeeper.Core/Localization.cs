@@ -44,10 +44,31 @@ public sealed class Loc : INotifyPropertyChanged
     public string this[string key] => Get(key);
 
     /// <summary>Строка по ключу. Неизвестный ключ возвращается как есть - это заметно.</summary>
-    public static string Get(string key) =>
+    public static string Get(string key) => Get(Current._language, key);
+
+    /// <summary>
+    /// Строка на заданном языке, не трогая текущий.
+    ///
+    /// Нужна там, где язык ещё не выбран приложением: настройки выводят из
+    /// него имя папки по умолчанию, но переключать язык всему окну чтение
+    /// файла не должно.
+    /// </summary>
+    public static string Get(Lang language, string key) =>
         Table.TryGetValue(key, out var pair)
-            ? (Current._language == Lang.En ? pair.En : pair.Ru)
+            ? (language == Lang.En ? pair.En : pair.Ru)
             : key;
+
+    /// <summary>
+    /// Все строки одного языка отдельным словарём.
+    ///
+    /// Разметка привязывается к снимку, а не к самой таблице: обновить
+    /// привязку к индексатору уведомлением "Item[]" не выходит, а на подмену
+    /// целого словаря привязки реагируют надёжно.
+    /// </summary>
+    public static Dictionary<string, string> Snapshot() => Snapshot(Current._language);
+
+    public static Dictionary<string, string> Snapshot(Lang language) =>
+        Table.ToDictionary(pair => pair.Key, pair => language == Lang.En ? pair.Value.En : pair.Value.Ru);
 
     /// <summary>
     /// Форма слова по числу. В таблице лежит "один|два|много".

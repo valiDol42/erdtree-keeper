@@ -38,9 +38,13 @@ public sealed class MainViewModel : ViewModelBase
 
     public MainViewModel()
     {
-        // Язык ставится при чтении настроек: от него зависят и строки окна, и
-        // имя папки по умолчанию.
         _settings = PortableSettings.Load();
+
+        // Язык применяется здесь и только здесь: сохранённый выбор, а без него
+        // язык системы. Само чтение настроек ничего не переключает, иначе
+        // повторный вызов менял бы язык уже открытому окну.
+        Loc.Current.Language = _settings.Language;
+        _strings = Loc.Snapshot();
 
         Log = new ActivityLog();
         _snapshotService = new SnapshotService(Log);
@@ -92,37 +96,77 @@ public sealed class MainViewModel : ViewModelBase
 
     // ─── Состояние ──────────────────────────────────────────────────────
 
-    /// <summary>Таблица строк для разметки: {Binding L[ключ]}.</summary>
-    public Loc L => Loc.Current;
+    private Dictionary<string, string> _strings;
 
-    /// <summary>Язык интерфейса. Переключается на лету и запоминается.</summary>
+    /// <summary>
+    /// Строки для разметки: {Binding L[ключ]}.
+    ///
+    /// Здесь лежит снимок таблицы, а не сама таблица. Привязку к индексатору
+    /// Avalonia по уведомлению "Item[]" не обновляет - при смене языка окно
+    /// оставалось наполовину переведённым. Подмена всего словаря - обычная
+    /// смена свойства, и на неё привязки реагируют без исключений.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> L => _strings;
+
+    /// <summary>
+    /// Язык интерфейса. Две половины переключателя ведут себя как радиокнопки:
+    /// щелчок по уже выбранной ничего не выключает.
+    /// </summary>
     public bool IsEnglish
     {
         get => Loc.Current.IsEnglish;
         set
         {
-            var lang = value ? Lang.En : Lang.Ru;
-            if (Loc.Current.Language == lang) return;
-
-            Loc.Current.Language = lang;
-            _settings.Values.Language = lang.ToString();
-            _settings.Save();
-
-            // Строки, собранные в модели, надо пересчитать вручную: они не
-            // проходят через индексатор таблицы.
-            OnPropertyChanged(nameof(IsEnglish));
-            OnPropertyChanged(nameof(CharacterLine));
-            OnPropertyChanged(nameof(PlaceLine));
-            OnPropertyChanged(nameof(SnapshotPreview));
-            OnPropertyChanged(nameof(SelectionSummary));
-            OnPropertyChanged(nameof(DeleteLabel));
-            OnPropertyChanged(nameof(TrackerPitch));
-            OnPropertyChanged(nameof(EmptyStateHint));
-            OnPropertyChanged(nameof(NameSortLabel));
-            OnPropertyChanged(nameof(DateSortLabel));
-            OnPropertyChanged(nameof(SnapshotSources));
-            UpdateFreshness();
+            if (!value) { OnPropertyChanged(); return; }
+            SetLanguage(Lang.En);
         }
+    }
+
+    public bool IsRussian
+    {
+        get => !Loc.Current.IsEnglish;
+        set
+        {
+            if (!value) { OnPropertyChanged(); return; }
+            SetLanguage(Lang.Ru);
+        }
+    }
+
+    private void SetLanguage(Lang language)
+    {
+        if (Loc.Current.Language == language) return;
+
+        Loc.Current.Language = language;
+        _settings.Values.Language = language.ToString();
+        _settings.Save();
+
+        ApplyLanguage();
+    }
+
+    /// <summary>
+    /// Перерисовывает окно после смены языка.
+    ///
+    /// Пустое имя свойства - соглашение INotifyPropertyChanged: обновится всё,
+    /// что привязано к модели. Раньше здесь стоял список свойств вручную, и он
+    /// подвёл ровно так, как такие списки и подводят: новое свойство в него
+    /// дописать забыли.
+    /// </summary>
+    private void ApplyLanguage()
+    {
+        // Переименование пунктов списка источников сбрасывает выбор в поле, а
+        // оно двусторонее и успевает записать в модель -1. Поэтому выбор
+        // запоминается до перерисовки и возвращается после неё.
+        var source = SnapshotSourceIndex;
+
+        _strings = Loc.Snapshot();
+        RefreshSourceNames();
+        UpdateFreshness();
+        SayAgain();
+
+        OnPropertyChanged(string.Empty);
+
+        SnapshotSourceIndex = source;
+        OnPropertyChanged(nameof(SnapshotSourceIndex));
     }
 
     public ActivityLog Log { get; }
@@ -306,8 +350,21 @@ public sealed class MainViewModel : ViewModelBase
         set { if (value is { } v) AutoKeep = (int)v; }
     }
 
-    /// <summary>Что показывает список: отобранные вручную снимки или автосохранения.</summary>
-    public string[] SnapshotSources => [Loc.Get("list.manual"), Loc.Get("list.auto")];
+    /// <summary>
+    /// Что показывает список: отобранные вручную снимки или автосохранения.
+    ///
+    /// Коллекция одна на всё время работы, и при смене языка в ней меняются
+    /// строки, а не она сама. Подмена списка целиком сбрасывала выбор, и
+    /// поле оставалось пустым.
+    /// </summary>
+    public ObservableCollection<string> SnapshotSources { get; } =
+        [Loc.Get("list.manual"), Loc.Get("list.auto")];
+
+    private void RefreshSourceNames()
+    {
+        SnapshotSources[0] = Loc.Get("list.manual");
+        SnapshotSources[1] = Loc.Get("list.auto");
+    }
 
     private int _snapshotSourceIndex;
     public int SnapshotSourceIndex
@@ -581,7 +638,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         RefreshAccounts();
         RefreshSnapshots();
-        Say(Loc.Get("status.listRefreshed"), "TextSecondaryBrush");
+        SayKey("status.listRefreshed", "TextSecondaryBrush");
         await Task.CompletedTask;
     }
 
@@ -605,7 +662,7 @@ public sealed class MainViewModel : ViewModelBase
 
         if (Accounts.Count == 0)
         {
-            Say(Loc.Get("status.noSaveFolder", GameSaves.DefaultRoot), "DangerBrush");
+            SayKey("status.noSaveFolder", "DangerBrush", GameSaves.DefaultRoot);
             Log.Warn(Loc.Get("log.noSaves"), GameSaves.DefaultRoot);
             return;
         }
@@ -664,7 +721,7 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSaveFile is null) return;
 
         IsBusy = true;
-        Say(Loc.Get("status.reading"), "TextSecondaryBrush");
+        SayKey("status.reading", "TextSecondaryBrush");
         try
         {
             var path = SelectedSaveFile.Path;
@@ -677,13 +734,13 @@ public sealed class MainViewModel : ViewModelBase
             });
 
             SaveContext = context;
-            Say(context is null ? Loc.Get("status.noCharacters") : Loc.Get("status.saveRead"),
+            SayKey(context is null ? "status.noCharacters" : "status.saveRead",
                 context is null ? "WarnBrush" : "FreshBrush");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Error(Loc.Get("err.readSave", ex.Message), SelectedSaveFile.Path);
-            Say(Loc.Get("err.readSave", ex.Message), "DangerBrush");
+            SayKey("err.readSave", "DangerBrush", ex.Message);
         }
         finally
         {
@@ -697,7 +754,7 @@ public sealed class MainViewModel : ViewModelBase
         if (SelectedSaveFile is null) return;
 
         IsBusy = true;
-        Say(Loc.Get("status.checking"), "TextSecondaryBrush");
+        SayKey("status.checking", "TextSecondaryBrush");
         try
         {
             var path = SelectedSaveFile.Path;
@@ -709,14 +766,14 @@ public sealed class MainViewModel : ViewModelBase
 
             var text = BuildIntegrityReport(report, SelectedSaveFile.Name);
             Log.Read(report.AllOk ? Loc.Get("log.integrityOk") : Loc.Get("status.damagedBlocks", report.BadCount), path);
-            Say(report.AllOk ? Loc.Get("status.integrityOk") : Loc.Get("status.damagedBlocks", report.BadCount),
-                report.AllOk ? "FreshBrush" : "DangerBrush");
+            if (report.AllOk) SayKey("status.integrityOk", "FreshBrush");
+            else SayKey("status.damagedBlocks", "DangerBrush", report.BadCount);
 
             if (ShowReportAsync is not null) await ShowReportAsync(Loc.Get("dlg.integrityTitle"), text);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Say(Loc.Get("err.check", ex.Message), "DangerBrush");
+            SayKey("err.check", "DangerBrush", ex.Message);
         }
         finally
         {
@@ -779,11 +836,11 @@ public sealed class MainViewModel : ViewModelBase
                 Loc.Get("dlg.overwriteTitle"),
                 Loc.Get("dlg.overwriteBody", fileName),
                 Loc.Get("dlg.overwrite"));
-            if (!overwrite) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
+            if (!overwrite) { SayKey("status.cancelled", "TextSecondaryBrush"); return; }
         }
 
         IsBusy = true;
-        Say(Loc.Get("status.snapshotting"), "TextSecondaryBrush");
+        SayKey("status.snapshotting", "TextSecondaryBrush");
         try
         {
             var result = await _snapshotService.CreateAsync(
@@ -818,10 +875,10 @@ public sealed class MainViewModel : ViewModelBase
             Loc.Get("dlg.restoreBody", SelectedSnapshot.Name, target)
             + warning + cloud,
             Loc.Get("list.restoreVerb"));
-        if (!confirmed) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
+        if (!confirmed) { SayKey("status.cancelled", "TextSecondaryBrush"); return; }
 
         IsBusy = true;
-        Say(Loc.Get("status.restoring"), "TextSecondaryBrush");
+        SayKey("status.restoring", "TextSecondaryBrush");
         try
         {
             var result = await _snapshotService.RestoreAsync(SelectedSnapshot.Path, target);
@@ -863,7 +920,7 @@ public sealed class MainViewModel : ViewModelBase
             title,
             names + NewLine + NewLine + Loc.Get("dlg.deleteBody"),
             doomed.Count == 1 ? Loc.Get("list.delete") : Loc.Get("dlg.deleteMany", doomed.Count));
-        if (!confirmed) { Say(Loc.Get("status.cancelled"), "TextSecondaryBrush"); return; }
+        if (!confirmed) { SayKey("status.cancelled", "TextSecondaryBrush"); return; }
 
         var removed = 0;
         var failed = new List<string>();
@@ -878,11 +935,12 @@ public sealed class MainViewModel : ViewModelBase
 
         if (failed.Count == 0)
         {
-            Say(removed == 1 ? Loc.Get("status.deletedOne") : Loc.Get("status.deletedMany", removed), "TextSecondaryBrush");
+            if (removed == 1) SayKey("status.deletedOne", "TextSecondaryBrush");
+            else SayKey("status.deletedMany", "TextSecondaryBrush", removed);
         }
         else
         {
-            Say(Loc.Get("status.deletedPartly", removed, failed.Count, failed[0]), "DangerBrush");
+            SayKey("status.deletedPartly", "DangerBrush", removed, failed.Count, failed[0]);
         }
 
         await Task.CompletedTask;
@@ -958,7 +1016,7 @@ public sealed class MainViewModel : ViewModelBase
         if (!GameSaves.IsInsideGameFolder(folder)) return false;
 
         Log.Warn(Loc.Get("log.gameFolderRejected"), folder);
-        Say(Loc.Get("status.gameFolderRejected"), "DangerBrush");
+        SayKey("status.gameFolderRejected", "DangerBrush");
         return true;
     }
 
@@ -972,11 +1030,11 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             await Log.ExportAsync(path);
-            Say(Loc.Get("status.logSaved"), "FreshBrush");
+            SayKey("status.logSaved", "FreshBrush");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Say(Loc.Get("err.logSave", ex.Message), "DangerBrush");
+            SayKey("err.logSave", "DangerBrush", ex.Message);
         }
     }
 
@@ -984,14 +1042,14 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SaveContext is null)
         {
-            Say(Loc.Get("status.readFirst"), "WarnBrush");
+            SayKey("status.readFirst", "WarnBrush");
             return;
         }
 
         var point = useBoss ? SaveContext.Boss : SaveContext.Location;
         if (point is null)
         {
-            Say(useBoss ? Loc.Get("status.noBossNearby") : Loc.Get("status.noLocation"), "WarnBrush");
+            SayKey(useBoss ? "status.noBossNearby" : "status.noLocation", "WarnBrush");
             return;
         }
 
@@ -1106,10 +1164,8 @@ public sealed class MainViewModel : ViewModelBase
             if (result.Success)
             {
                 var removed = _snapshotService.Rotate(folder, AutoKeep);
-                Say(removed > 0
-                        ? Loc.Get("status.autoSnapRotated", name, removed)
-                        : Loc.Get("status.autoSnap", name),
-                    "FreshBrush");
+                if (removed > 0) SayKey("status.autoSnapRotated", "FreshBrush", name, removed);
+                else SayKey("status.autoSnap", "FreshBrush", name);
                 RefreshSnapshots();
             }
         }
@@ -1133,10 +1189,40 @@ public sealed class MainViewModel : ViewModelBase
 
     private void UpdateCreateAvailability() => CreateSnapshotCommand.RaiseCanExecuteChanged();
 
+    // Последняя строка состояния - не журнал, а описание текущего положения
+    // дел, поэтому при смене языка она должна смениться вместе с окном. Для
+    // этого хранится ключ, а не только готовый текст.
+    private string? _statusKey;
+    private object[] _statusArgs = [];
+    private string _statusBrushKey = "TextSecondaryBrush";
+
+    private void SayKey(string key, string brushKey, params object[] args)
+    {
+        _statusKey = key;
+        _statusArgs = args;
+        _statusBrushKey = brushKey;
+
+        Status = args.Length == 0 ? Loc.Get(key) : Loc.Get(key, args);
+        StatusBrush = Brush(brushKey);
+    }
+
+    /// <summary>
+    /// Состояние из готовой строки - например, ответ службы копирования.
+    /// Такую строку пересчитать нельзя, поэтому ключ сбрасывается.
+    /// </summary>
     private void Say(string message, string brushKey)
     {
+        _statusKey = null;
+        _statusArgs = [];
+        _statusBrushKey = brushKey;
+
         Status = message;
         StatusBrush = Brush(brushKey);
+    }
+
+    private void SayAgain()
+    {
+        if (_statusKey is { } key) SayKey(key, _statusBrushKey, _statusArgs);
     }
 
     private static IBrush Brush(string key)
