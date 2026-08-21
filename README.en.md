@@ -25,6 +25,16 @@ Everything here is arranged so that you do not have to take anyone's word for it
 **The source is open, all of it.** No prebuilt binaries of unknown origin, no obfuscation.
 Everything the program does can be read in this repository.
 
+**The file has been scanned by antivirus engines.** The 1.3.1 build was run through
+[VirusTotal](https://www.virustotal.com/gui/file/9a532a7d6dbe01776179ce20ea0cd0d929a5952c9bb082a03d9f91c521d9bb4f) - 69 engines at once, and none of them considers the file malicious. The
+report is tied to the checksum rather than to my word: compute the SHA-256 of your own copy
+and open the report for that sum - the result should be the same. Every new version has its
+own checksum and its own report.
+
+VirusTotal shows the name `ErdtreeKeeper.dll` even though the file is an `.exe`. That is the
+internal .NET assembly name stored inside the exe; it is the same file, and the matching
+checksum confirms it.
+
 **The program cannot go online.** Not "does not" - cannot: the built file imports no
 networking library at all. No updates, no telemetry, no uploads. This is visible in the
 import table of the exe, which holds only file, window and checksum-cryptography work:
@@ -59,6 +69,7 @@ Uninstalling means deleting the folder.
 | --- | --- |
 | The file was not swapped after the build | In the "About" window press "Compute SHA-256" and compare it with the sum on the release page |
 | The build came from this code | Build it yourself and compare the sum. A public repository also carries an attestation: `gh attestation verify ErdtreeKeeper.exe --repo <owner>/erdtree-keeper` (GitHub issues none for user-owned private repositories) |
+| The file is not flagged as malicious | [VirusTotal report](https://www.virustotal.com/gui/file/9a532a7d6dbe01776179ce20ea0cd0d929a5952c9bb082a03d9f91c521d9bb4f) for 1.3.1: 0 of 69 engines. Easy to repeat - compute the SHA-256 of your copy and open the report for that sum |
 | The program does not go online | `dumpbin /dependents ErdtreeKeeper.exe` - no networking libraries in the list. Or any connection monitor: TCPView, Wireshark, the Windows resource monitor |
 | What the program does to your disk | The "Activity log" button in the window: every file access is there, and the log exports to a text file |
 | The code does what it says | Build it yourself: `dotnet publish` (see below), compare your build with the released one |

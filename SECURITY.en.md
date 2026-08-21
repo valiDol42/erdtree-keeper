@@ -30,6 +30,14 @@ The program does not request administrator rights; that is fixed in the manifest
 
 ## How to be sure the downloaded file is genuine
 
+**Antivirus scan.** The 1.3.1 build was run through VirusTotal: 69 engines, no
+detections - [the report](https://www.virustotal.com/gui/file/9a532a7d6dbe01776179ce20ea0cd0d929a5952c9bb082a03d9f91c521d9bb4f). The report opens by the checksum of the file, so the check
+can be repeated independently and should give the same result. It belongs to one specific
+build: the next version will have its own checksum and its own report.
+
+In the report the file is listed as `ErdtreeKeeper.dll` - that is the internal .NET assembly
+name inside the exe, not a different file.
+
 **Checksum.** Every release page carries a `SHA256SUMS.txt` file. Compare:
 
 ```powershell
