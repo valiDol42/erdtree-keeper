@@ -27,7 +27,10 @@ jobs:
 
       - name: Собрать статистику
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Встроенному токену Actions traffic закрыт - на нём 403 при любых
+          # permissions. STATS_TOKEN - personal access token с правом
+          # Administration (read); без него соберутся только скачивания.
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: python3 scripts/collect-stats.py
 

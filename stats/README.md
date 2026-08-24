@@ -35,6 +35,33 @@
 Insights: сумма за две недели на момент снимка. Сравнивать их между соседними днями
 бессмысленно, зато видно, как менялась картина от недели к неделе.
 
+## Что нужно, чтобы собирался трафик
+
+Скачивания собираются сами и никаких прав не требуют. С трафиком иначе:
+**встроенный токен GitHub Actions получает на нём 403** при любых `permissions` - GitHub
+отдаёт traffic только по personal access token. Без него ежедневный запуск будет собирать
+одни скачивания и писать предупреждение.
+
+Как включить, один раз:
+
+1. [Создать fine-grained токен](https://github.com/settings/personal-access-tokens/new).
+2. Repository access → Only select repositories → `erdtree-keeper`.
+3. Repository permissions → **Administration** → Read-only. Больше ничего не нужно: ни
+   доступа к коду, ни к секретам.
+4. Скопировать токен.
+5. В репозитории: Settings → Secrets and variables → Actions → New repository secret,
+   имя `STATS_TOKEN`, значение - токен.
+
+У fine-grained токенов есть срок действия. Когда он истечёт, сбор не сломается - в журнале
+запуска появится предупреждение, а трафик начнёт пропускаться. Стоит завести напоминание.
+
+Собрать вручную, не дожидаясь ночного запуска, можно и локально - права берутся из
+авторизации `gh`:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) REPO=valiDol42/erdtree-keeper python3 scripts/collect-stats.py
+```
+
 ## Чего здесь нет
 
 Скачивания автоматических архивов «Source code (zip)» и «(tar.gz)» GitHub не считает
@@ -68,3 +95,9 @@ snapshots. Referrers and paths are not daily slices but the 14-day totals GitHub
 Insights, so comparing them day to day tells you little; week to week it does.
 
 Downloads of the automatic "Source code" archives are not counted by GitHub at all.
+
+**Traffic needs a token.** Download counters are public, but the traffic API returns 403 to
+the built-in Actions token no matter the `permissions` - GitHub only serves it to a personal
+access token. Create a fine-grained token limited to this repository with **Administration
+(read)** and store it as the `STATS_TOKEN` repository secret. Without it the daily run
+collects downloads only and says so in the log.
