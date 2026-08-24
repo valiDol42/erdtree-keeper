@@ -190,14 +190,21 @@ def collect_popular():
 
 
 def fetch(url, attempts=3):
-    """Страница как текст. Повторы те же и по той же причине, что у api()."""
+    """
+    Страница как текст и адрес, на котором мы в итоге оказались.
+
+    Итоговый адрес важен: Steam на отказ отвечает не ошибкой, а молчаливым
+    перенаправлением на общую страницу, и без него это выглядит как «разметка
+    поменялась».
+    """
     request = urllib.request.Request(url)
     request.add_header("User-Agent", "erdtree-keeper-stats")
+    request.add_header("Accept-Language", "en-US,en;q=0.9")
 
     for attempt in range(1, attempts + 1):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                return response.read().decode("utf-8", "replace")
+                return response.read().decode("utf-8", "replace"), response.geturl()
         except (urllib.error.HTTPError, urllib.error.URLError) as error:
             if attempt == attempts:
                 raise
@@ -237,7 +244,7 @@ def collect_steam():
 
     rows = []
     for guide in ids:
-        page = fetch(f"https://steamcommunity.com/sharedfiles/filedetails/?id={guide}")
+        page, landed = fetch(f"https://steamcommunity.com/sharedfiles/filedetails/?id={guide}&l=english")
 
         title = ""
         found = re.search(r"<title>(.*?)</title>", page, re.S)
@@ -258,8 +265,8 @@ def collect_steam():
         favorites = stats.get("current favorites", "")
 
         if not visitors:
-            print(f"::warning::Steam {guide}: не нашлась таблица статистики. "
-                  "Либо руководство скрыто, либо Steam поменял разметку.", file=sys.stderr)
+            print(f"::warning::Steam {guide}: таблица статистики не найдена. "
+                  f"Оказались на {landed}, заголовок страницы «{title}».", file=sys.stderr)
 
         rows.append([TODAY, guide, title, visitors, favorites])
         print(f"  Steam {guide}: посетителей {visitors or '?'}, "
