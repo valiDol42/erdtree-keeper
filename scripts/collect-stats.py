@@ -265,16 +265,21 @@ def collect_steam():
         favorites = stats.get("current favorites", "")
 
         if not visitors:
-            print(f"::warning::Steam {guide}: таблица статистики не найдена. "
-                  f"Оказались на {landed}, заголовок страницы «{title}».", file=sys.stderr)
+            # Пустую строку не пишем: она затёрла бы уже собранные за сегодня
+            # цифры. Дырка в данных честнее выдуманного нуля.
+            print(f"::warning::Steam {guide}: таблица статистики не найдена, "
+                  f"пропускаю. Оказались на {landed}, заголовок «{title}».",
+                  file=sys.stderr)
+            continue
 
         rows.append([TODAY, guide, title, visitors, favorites])
-        print(f"  Steam {guide}: посетителей {visitors or '?'}, "
-              f"в избранном {favorites or '?'} - {title}")
+        print(f"  Steam {guide}: посетителей {visitors}, "
+              f"в избранном {favorites or '0'} - {title}")
 
-    merge("steam.csv",
-          ["snapshot_date", "guide_id", "title", "unique_visitors", "favorites"],
-          2, rows)
+    if rows:
+        merge("steam.csv",
+              ["snapshot_date", "guide_id", "title", "unique_visitors", "favorites"],
+              2, rows)
 
 
 def main():
