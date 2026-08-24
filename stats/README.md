@@ -15,6 +15,7 @@
 | `downloads.csv` | Счётчики скачивания файлов релизов | Снимок на дату |
 | `referrers.csv` | Откуда приходили | Снимок на дату, сумма за 14 дней |
 | `paths.csv` | Какие страницы репозитория открывали | Снимок на дату, сумма за 14 дней |
+| `steam.csv` | Руководства Steam: посетители и избранное | Снимок на дату |
 
 ## Как читать
 
@@ -34,6 +35,20 @@
 **`referrers.csv` и `paths.csv`** - не срез за сутки, а то, что GitHub показывает в
 Insights: сумма за две недели на момент снимка. Сравнивать их между соседними днями
 бессмысленно, зато видно, как менялась картина от недели к неделе.
+
+**`steam.csv`** - уникальные посетители и число добавлений в избранное по каждому
+руководству. Как и скачивания, это накопленные значения, а не срез за сутки: прирост за
+день - разница между снимками.
+
+Список руководств лежит в [`steam-guides.ids`](steam-guides.ids), по номеру на строку.
+Номер виден в адресе руководства. Чтобы добавить новое, допишите строку - код править не
+нужно.
+
+Через Workshop API эти цифры не достать: `ISteamRemoteStorage` отвечает на такие номера
+«файл не найден», руководства ему не принадлежат. Поэтому значения берутся с самой
+страницы руководства, оттуда, где их показывает Steam. Разметка чужая: если Steam её
+поменяет, сбор не сломается, а напишет предупреждение - и вот тогда разбор придётся
+поправить.
 
 ## Что нужно, чтобы собирался трафик
 
@@ -88,6 +103,7 @@ Whatever is not saved in time is gone for good.
 | `downloads.csv` | Download counters of release assets | Snapshot per date |
 | `referrers.csv` | Where visitors came from | Snapshot per date, 14-day total |
 | `paths.csv` | Which repository pages were opened | Snapshot per date, 14-day total |
+| `steam.csv` | Steam guides: unique visitors and favorites | Snapshot per date |
 
 Download counters are **cumulative** - GitHub counts from the moment a release is published
 and never resets them. Downloads for a given day are the difference between two consecutive
@@ -95,6 +111,11 @@ snapshots. Referrers and paths are not daily slices but the 14-day totals GitHub
 Insights, so comparing them day to day tells you little; week to week it does.
 
 Downloads of the automatic "Source code" archives are not counted by GitHub at all.
+
+**Steam guides** are listed in [`steam-guides.ids`](steam-guides.ids), one number per line -
+add a line to track another one. The Workshop API refuses these ids ("file not found":
+guides do not belong to it), so the numbers are read from the guide page itself. That markup
+belongs to Steam, so a change there produces a warning rather than a failure.
 
 **Traffic needs a token.** Download counters are public, but the traffic API returns 403 to
 the built-in Actions token no matter the `permissions` - GitHub only serves it to a personal

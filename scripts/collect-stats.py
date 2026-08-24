@@ -20,8 +20,10 @@ traffic закрыт: встроенный GITHUB_TOKEN из Actions получ�
 """
 
 import csv
+import html
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -187,6 +189,87 @@ def collect_popular():
     merge("paths.csv", ["snapshot_date", "path", "count", "uniques"], 2, paths)
 
 
+def fetch(url, attempts=3):
+    """Страница как текст. Повторы те же и по той же причине, что у api()."""
+    request = urllib.request.Request(url)
+    request.add_header("User-Agent", "erdtree-keeper-stats")
+
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.read().decode("utf-8", "replace")
+        except (urllib.error.HTTPError, urllib.error.URLError) as error:
+            if attempt == attempts:
+                raise
+            print(f"  {url}: {error}, попытка {attempt} из {attempts}", file=sys.stderr)
+            time.sleep(attempt * 5)
+
+
+def guide_ids():
+    """Номера руководств из stats/steam-guides.ids. Всё после # - комментарий."""
+    path = os.path.join(STATS, "steam-guides.ids")
+    if not os.path.exists(path):
+        return []
+
+    ids = []
+    with open(path, encoding="utf-8") as file:
+        for line in file:
+            number = re.match(r"\s*(\d+)", line)
+            if number:
+                ids.append(number.group(1))
+    return ids
+
+
+def collect_steam():
+    """
+    Просмотры и избранное руководств Steam.
+
+    Через Workshop API их не достать: ISteamRemoteStorage отвечает на такие
+    номера «файл не найден» - руководства ему не принадлежат. Цифры берутся с
+    самой страницы, где их и показывает Steam. Разметка чужая и может
+    измениться, поэтому разбор мягкий: не разобралось - предупреждение, а не
+    падение всего сбора.
+    """
+    ids = guide_ids()
+    if not ids:
+        print("  Steam: список руководств пуст - stats/steam-guides.ids не найден")
+        return
+
+    rows = []
+    for guide in ids:
+        page = fetch(f"https://steamcommunity.com/sharedfiles/filedetails/?id={guide}")
+
+        title = ""
+        found = re.search(r"<title>(.*?)</title>", page, re.S)
+        if found:
+            # "Steam Community :: Guide :: Название" - нужна последняя часть.
+            title = html.unescape(found.group(1)).split("::")[-1].strip()
+
+        stats = {}
+        table = re.search(r'<table class="stats_table">(.*?)</table>', page, re.S)
+        if table:
+            for row in re.findall(r"<tr>(.*?)</tr>", table.group(1), re.S):
+                cells = [re.sub(r"<[^>]+>|\s+", " ", cell).strip()
+                         for cell in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+                if len(cells) == 2:
+                    stats[cells[1].lower()] = cells[0].replace(",", "").replace(" ", "")
+
+        visitors = stats.get("unique visitors", "")
+        favorites = stats.get("current favorites", "")
+
+        if not visitors:
+            print(f"::warning::Steam {guide}: не нашлась таблица статистики. "
+                  "Либо руководство скрыто, либо Steam поменял разметку.", file=sys.stderr)
+
+        rows.append([TODAY, guide, title, visitors, favorites])
+        print(f"  Steam {guide}: посетителей {visitors or '?'}, "
+              f"в избранном {favorites or '?'} - {title}")
+
+    merge("steam.csv",
+          ["snapshot_date", "guide_id", "title", "unique_visitors", "favorites"],
+          2, rows)
+
+
 def main():
     print(f"Репозиторий: {REPO}, дата снимка: {TODAY}")
 
@@ -205,6 +288,12 @@ def main():
     # сломалось что-то настоящее.
     collect_downloads()
     collected += 1
+
+    # Steam - чужой сайт: его недоступность не должна ронять сбор по GitHub.
+    try:
+        collect_steam()
+    except (urllib.error.HTTPError, urllib.error.URLError) as error:
+        print(f"::warning::Статистика Steam пропущена: {error}", file=sys.stderr)
 
     if collected == 1:
         print("Собраны только скачивания. Трафик за эти дни будет потерян "
