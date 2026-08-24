@@ -3,6 +3,10 @@ name: Сборка и тесты
 on:
   push:
     branches: [main]
+    # Ежедневный коммит статистики кода не меняет - гонять из-за него сборку
+    # и тесты на windows-latest незачем.
+    paths-ignore:
+      - 'stats/**'
   pull_request:
   workflow_dispatch:
 

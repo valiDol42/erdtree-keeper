@@ -1,0 +1,48 @@
+name: Статистика
+
+# Трафик репозитория GitHub хранит только 14 дней и старше не отдаёт никому.
+# Этот запуск раз в сутки забирает цифры до того, как они пропадут, и кладёт
+# их в stats/ рядом с кодом.
+
+on:
+  schedule:
+    # 03:17 UTC - неровное время специально: ровные часы у GitHub загружены,
+    # и запуск по расписанию сдвигается сильнее.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Собрать статистику
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: python3 scripts/collect-stats.py
+
+      - name: Сохранить, если что-то изменилось
+        run: |
+          if [ -z "$(git status --porcelain stats)" ]; then
+            echo "Изменений нет - коммит не нужен."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add stats
+
+          # [skip ci] - иначе ежедневный коммит гонял бы сборку и тесты
+          # впустую: код от этого не меняется.
+          git commit -m "Статистика за $(date -u +%F) [skip ci]"
+          git push
