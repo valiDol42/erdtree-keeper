@@ -117,6 +117,11 @@ character position and insert the nearest site of grace or boss arena. The `DLC`
 Realm of Shadow is added on its own. Names stay consistent between files, and `_before` /
 `_after` pairs always end up next to each other when sorted.
 
+The place is always current: the program watches the file and re-reads it once the game has
+finished writing the save, and the button checks freshness at the moment it is pressed.
+There is no need to press "Read save" before every snapshot - that button remains for when
+you simply want to look at the character card right now.
+
 **Integrity check.** It recomputes all 11 checksums inside a save and reports, block by
 block, whether each one matched. Damage becomes visible in advance instead of at the moment
 the game says "Save data is corrupt".

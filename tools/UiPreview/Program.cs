@@ -131,6 +131,94 @@ static void Shoot(string outputDir, int width, int height)
     Console.WriteLine($"   после перезапуска: {(reopened.IsEnglish ? "En" : "Ru")}"
                       + $" (выбирали {(chosen ? "En" : "Ru")})");
 
+    // Разведка: что за место в каждом сейве. Нужна, чтобы для проверки ниже
+    // выбрать два файла с РАЗНОЙ локацией - иначе проверка ничего не докажет.
+    var probeDir = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_PROBE_DIR");
+    if (!string.IsNullOrWhiteSpace(probeDir) && Directory.Exists(probeDir))
+    {
+        foreach (var file in Directory.GetFiles(probeDir, "*.sl2").Take(8))
+        {
+            try
+            {
+                var context = SaveContextReader.Read(File.ReadAllBytes(file));
+                Console.WriteLine($"   ПРОБА {Path.GetFileName(file)}: {context?.Location?.Display ?? "(не прочиталось)"}");
+            }
+            catch (Exception error)
+            {
+                Console.WriteLine($"   ПРОБА {Path.GetFileName(file)}: ошибка {error.GetType().Name}");
+            }
+        }
+    }
+
+    // Проверка поведения, а не вида: игра переписала сейв - "+ локация"
+    // обязана подставить новое место, не требуя нажимать "Прочитать сейв".
+    var second = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_SECOND_SAVE");
+    var fake = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_FAKE_SAVES");
+    if (!string.IsNullOrWhiteSpace(second) && File.Exists(second) && !string.IsNullOrWhiteSpace(fake))
+    {
+        var live = NewModel();
+        live.DismissOnboardingCommand.Execute(null);
+        UseFakeAccount(live);
+        live.AnalyzeCommand.Execute(null);
+        for (var i = 0; i < 40 && live.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+
+        var before = live.SaveContext?.Location?.Display ?? "(не прочитано)";
+
+        // Подменяем файл - это ровно то, что делает игра, записывая сейв.
+        var target = Directory.GetFiles(Path.Combine(fake, "76561190000000001"), "*.sl2")[0];
+        File.Copy(second, target, overwrite: true);
+
+        live.SnapshotName = "";
+        live.AddLocationCommand.Execute(null);
+        for (var i = 0; i < 60 && live.SnapshotName.Length == 0; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+
+        var after = live.SaveContext?.Location?.Display ?? "(не прочитано)";
+        Console.WriteLine($"   было: {before}");
+        Console.WriteLine($"   стало после подмены сейва: {after}");
+        Console.WriteLine($"   имя снимка от кнопки: {live.SnapshotName}");
+        Console.WriteLine(before != after && live.SnapshotName.Contains(after)
+            ? "   ПРОВЕРКА ПРОЙДЕНА: кнопка подставила свежее место без Прочитать сейв"
+            : "   ПРОВЕРКА НЕ ПРОЙДЕНА");
+    }
+
+    // Второй путь: без единого нажатия. Игра дописала сейв - через несколько
+    // секунд карточка и кнопки должны знать новое место сами.
+    var firstSave = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_FIRST_SAVE");
+    if (!string.IsNullOrWhiteSpace(second) && File.Exists(second)
+        && !string.IsNullOrWhiteSpace(firstSave) && File.Exists(firstSave)
+        && !string.IsNullOrWhiteSpace(fake))
+    {
+        // Первая проверка уже подменила файл - возвращаем исходный, иначе
+        // "подменили на то же самое" выглядит как "ничего не обновилось".
+        File.Copy(firstSave, Directory.GetFiles(Path.Combine(fake, "76561190000000001"), "*.sl2")[0], overwrite: true);
+
+        var watcher = NewModel();
+        watcher.DismissOnboardingCommand.Execute(null);
+        UseFakeAccount(watcher);
+        watcher.AnalyzeCommand.Execute(null);
+        for (var i = 0; i < 40 && watcher.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+
+        var startingPlace = watcher.SaveContext?.Location?.Display ?? "";
+        var target = Directory.GetFiles(Path.Combine(fake, "76561190000000001"), "*.sl2")[0];
+        File.Copy(second, target, overwrite: true);
+
+        // Тик раз в 2 с, запись считается законченной через 6 с покоя.
+        var waited = 0;
+        while (waited < 20000 && (watcher.SaveContext?.Location?.Display ?? "") == startingPlace)
+        {
+            watcher.PollSaveFile();
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(250);
+            waited += 250;
+        }
+
+        var nowPlace = watcher.SaveContext?.Location?.Display ?? "(нет)";
+        Console.WriteLine($"   без нажатий: было \"{startingPlace}\", стало \"{nowPlace}\" за {waited / 1000.0:0.0} с");
+        Console.WriteLine(nowPlace != startingPlace
+            ? "   ПРОВЕРКА 2 ПРОЙДЕНА: место обновилось само, по факту записи"
+            : "   ПРОВЕРКА 2 НЕ ПРОЙДЕНА: за 20 с место не обновилось");
+    }
+
     // Журнал открыт: левая колонка не должна от этого сжиматься.
     var withLog = NewModel();
     withLog.DismissOnboardingCommand.Execute(null);

@@ -36,6 +36,11 @@ public sealed class MainViewModel : ViewModelBase
     private long _lastSeenLength;
     private DateTime _lastSeenWrite;
 
+    // Отпечаток файла, которому соответствует прочитанный контекст: время
+    // записи и длина. По нему видно, что сейв с тех пор переписан.
+    private DateTime _contextWrittenAt;
+    private long _contextLength;
+
     public MainViewModel()
     {
         _settings = PortableSettings.Load();
@@ -70,8 +75,8 @@ public sealed class MainViewModel : ViewModelBase
         ExportLogCommand = new AsyncRelayCommand(ExportLogAsync);
         DismissOnboardingCommand = new RelayCommand(DismissOnboarding);
 
-        AddLocationCommand = new RelayCommand(() => AppendFromContext(useBoss: false));
-        AddBossCommand = new RelayCommand(() => AppendFromContext(useBoss: true));
+        AddLocationCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: false));
+        AddBossCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: true));
         AddBeforeCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.WithPairSuffix(SnapshotName, SnapshotNaming.BeforeSuffix));
         AddAfterCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.WithPairSuffix(SnapshotName, SnapshotNaming.AfterSuffix));
         ClearNameCommand = new RelayCommand(() => SnapshotName = "");
@@ -610,8 +615,8 @@ public sealed class MainViewModel : ViewModelBase
     public RelayCommand OpenSnapshotFolderCommand { get; }
     public RelayCommand OpenGameFolderCommand { get; }
     public RelayCommand DismissOnboardingCommand { get; }
-    public RelayCommand AddLocationCommand { get; }
-    public RelayCommand AddBossCommand { get; }
+    public AsyncRelayCommand AddLocationCommand { get; }
+    public AsyncRelayCommand AddBossCommand { get; }
     public RelayCommand AddBeforeCommand { get; }
     public RelayCommand AddAfterCommand { get; }
     public RelayCommand ClearNameCommand { get; }
@@ -715,13 +720,66 @@ public sealed class MainViewModel : ViewModelBase
         if (e.PropertyName == nameof(SnapshotRow.IsSelected)) OnRowSelectionChanged();
     }
 
-    /// <summary>Читает сейв и показывает, кто где стоит.</summary>
-    private async Task AnalyzeAsync()
+    /// <summary>Читает сейв по кнопке - с сообщением о том, что происходит.</summary>
+    private async Task AnalyzeAsync() => await ReadContextAsync(announce: true);
+
+    /// <summary>
+    /// Устарел ли прочитанный контекст.
+    ///
+    /// Сравнение на неравенство, а не на "файл новее". Восстановление снимка
+    /// кладёт в игру старый файл, и его время записи оказывается РАНЬШЕ того,
+    /// когда мы читали текущий: проверка "новее" такую подмену пропускала, и
+    /// в имени снимка оставалось прежнее место. Длина здесь же - на случай,
+    /// если время совпало с точностью до тика.
+    /// </summary>
+    private bool ContextIsStale
+    {
+        get
+        {
+            if (SelectedSaveFile is null) return false;
+            if (SaveContext is null) return true;
+
+            try
+            {
+                var info = new FileInfo(SelectedSaveFile.Path);
+                if (!info.Exists) return false;
+                return info.LastWriteTime != _contextWrittenAt || info.Length != _contextLength;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Читает сейв и показывает, кто где стоит.
+    ///
+    /// announce = false - фоновое обновление после того, как игра дописала
+    /// сейв. Данные должны стать свежими, но занимать собой строку состояния и
+    /// мигать индикатором занятости на ровном месте незачем.
+    /// </summary>
+    private async Task ReadContextAsync(bool announce)
     {
         if (SelectedSaveFile is null) return;
 
-        IsBusy = true;
-        SayKey("status.reading", "TextSecondaryBrush");
+        DateTime writtenAt;
+        long length;
+        try
+        {
+            var info = new FileInfo(SelectedSaveFile.Path);
+            if (!info.Exists) return;
+            writtenAt = info.LastWriteTime;
+            length = info.Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+
+        if (announce)
+        {
+            IsBusy = true;
+            SayKey("status.reading", "TextSecondaryBrush");
+        }
+
         try
         {
             var path = SelectedSaveFile.Path;
@@ -734,17 +792,30 @@ public sealed class MainViewModel : ViewModelBase
             });
 
             SaveContext = context;
-            SayKey(context is null ? "status.noCharacters" : "status.saveRead",
-                context is null ? "WarnBrush" : "FreshBrush");
+            // Отпечаток снимаем ДО чтения: если игра успела переписать сейв,
+            // пока мы его разбирали, контекст уже устарел, и следующая проверка
+            // это увидит, а не сочтёт его свежим.
+            _contextWrittenAt = writtenAt;
+            _contextLength = length;
+
+            if (announce)
+            {
+                SayKey(context is null ? "status.noCharacters" : "status.saveRead",
+                    context is null ? "WarnBrush" : "FreshBrush");
+            }
+            else if (context is not null)
+            {
+                SayKey("status.saveRefreshed", "FreshBrush");
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Error(Loc.Get("err.readSave", ex.Message), SelectedSaveFile.Path);
-            SayKey("err.readSave", "DangerBrush", ex.Message);
+            if (announce) SayKey("err.readSave", "DangerBrush", ex.Message);
         }
         finally
         {
-            IsBusy = false;
+            if (announce) IsBusy = false;
         }
     }
 
@@ -1038,6 +1109,20 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Подставляет место в имя снимка, предварительно убедившись, что оно
+    /// свежее.
+    ///
+    /// Тик может не успеть: между записью сейва игрой и нажатием кнопки
+    /// проходит меньше времени, чем нужно, чтобы признать запись законченной.
+    /// Поэтому здесь перечитывание не по расписанию, а по факту устаревания.
+    /// </summary>
+    private async Task AppendFromContextAsync(bool useBoss)
+    {
+        if (ContextIsStale) await ReadContextAsync(announce: false);
+        AppendFromContext(useBoss);
+    }
+
     private void AppendFromContext(bool useBoss)
     {
         if (SaveContext is null)
@@ -1070,8 +1155,17 @@ public sealed class MainViewModel : ViewModelBase
     private void OnTick()
     {
         UpdateFreshness();
-        if (AutoSnapshotEnabled) TrackWritesForAutoSnapshot();
+        TrackSaveWrites();
     }
+
+    /// <summary>
+    /// Один шаг слежения за файлом - ровно то, что делает таймер окна.
+    ///
+    /// Вынесено в публичный метод ради проверяемости: в headless-стенде таймер
+    /// не тикает, и без этой точки сценарий "игра записала сейв - место
+    /// обновилось само" проверить нечем.
+    /// </summary>
+    public void PollSaveFile() => TrackSaveWrites();
 
     private void UpdateFreshness()
     {
@@ -1107,11 +1201,16 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Автоснимок делается по факту записи, а не по таймеру: сначала ждём
-    /// изменения файла, потом - пока он перестанет меняться. Снимок, снятый в
-    /// момент записи, был бы обрывком.
+    /// Следит за тем, как игра пишет сейв: сначала ждём изменения файла, потом
+    /// - пока он перестанет меняться.
+    ///
+    /// Раньше это работало только при включённом автосохранении и служило
+    /// только ему. Но по тому же событию надо перечитывать и содержимое сейва:
+    /// иначе "+ локация" подставляет место, где персонаж был на момент запуска
+    /// программы, и игроку приходится каждый раз вручную жать "Прочитать сейв"
+    /// - причём догадаться об этом неоткуда.
     /// </summary>
-    private void TrackWritesForAutoSnapshot()
+    private void TrackSaveWrites()
     {
         if (SelectedSaveFile is null) return;
 
@@ -1134,6 +1233,13 @@ public sealed class MainViewModel : ViewModelBase
         // Файл не менялся достаточно долго - запись закончилась.
         if ((DateTime.Now - _pendingWrite.Value).TotalSeconds < 6) return;
         _pendingWrite = null;
+
+        // Сейв переписан - перечитываем его, чтобы карточка персонажа и кнопки
+        // имени показывали, где он стоит сейчас. Это делается независимо от
+        // автосохранения: место в имени снимка нужно и тем, кто снимает вручную.
+        if (ContextIsStale) _ = ReadContextAsync(announce: false);
+
+        if (!AutoSnapshotEnabled) return;
 
         // Нижняя граница частоты: игра пишет сейв часто, и без неё папка
         // забивалась бы почти одинаковыми копиями.
@@ -1180,6 +1286,11 @@ public sealed class MainViewModel : ViewModelBase
         _pendingWrite = null;
         _lastSeenWrite = default;
         _lastSeenLength = 0;
+
+        // Контекст относился к прежнему файлу - отпечаток тоже обнуляем, иначе
+        // новый сейв сочтётся уже прочитанным.
+        _contextWrittenAt = default;
+        _contextLength = 0;
     }
 
     // ─── Мелочи ─────────────────────────────────────────────────────────

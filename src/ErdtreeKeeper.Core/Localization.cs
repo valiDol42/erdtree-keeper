@@ -402,6 +402,9 @@ public sealed class Loc : INotifyPropertyChanged
         ["status.ready"] = ("Готово", "Ready"),
         ["status.listRefreshed"] = ("Список обновлён", "List refreshed"),
         ["status.reading"] = ("Читаю сейв...", "Reading the save..."),
+        ["status.saveRefreshed"] = (
+            "Сейв перечитан - место обновилось",
+            "Save re-read - the location is up to date"),
         ["status.saveRead"] = ("Сейв прочитан", "Save read"),
         ["status.noCharacters"] = ("Персонажи в сейве не найдены", "No characters found in the save"),
         ["status.checking"] = ("Проверяю целостность...", "Checking integrity..."),
