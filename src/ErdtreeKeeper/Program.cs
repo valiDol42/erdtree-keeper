@@ -34,6 +34,10 @@ internal static class Program
 
         if (!CheckLibraries()) return;
 
+        // Раньше любого кода, который может упасть: сбой должен оставить след
+        // и окно, а не закрыть программу молча.
+        CrashGuard.Install();
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

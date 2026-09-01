@@ -12,6 +12,9 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Диспетчер существует только с этого момента - подписываемся здесь.
+        CrashGuard.InstallDispatcherHandler();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var viewModel = new MainViewModel();

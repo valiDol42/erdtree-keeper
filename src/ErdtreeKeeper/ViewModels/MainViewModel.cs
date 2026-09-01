@@ -41,6 +41,10 @@ public sealed class MainViewModel : ViewModelBase
     private DateTime _contextWrittenAt;
     private long _contextLength;
 
+    // Тик и кнопка могут захотеть прочитать сейв в одну и ту же секунду.
+    // Второе чтение ничего не добавит - только лишние 29 МБ с диска.
+    private bool _readingContext;
+
     public MainViewModel()
     {
         _settings = PortableSettings.Load();
@@ -761,7 +765,8 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     private async Task ReadContextAsync(bool announce)
     {
-        if (SelectedSaveFile is null) return;
+        if (SelectedSaveFile is null || _readingContext) return;
+        _readingContext = true;
 
         DateTime writtenAt;
         long length;
@@ -772,7 +777,11 @@ public sealed class MainViewModel : ViewModelBase
             writtenAt = info.LastWriteTime;
             length = info.Length;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _readingContext = false;
+            return;
+        }
 
         if (announce)
         {
@@ -813,8 +822,16 @@ public sealed class MainViewModel : ViewModelBase
             Log.Error(Loc.Get("err.readSave", ex.Message), SelectedSaveFile.Path);
             if (announce) SayKey("err.readSave", "DangerBrush", ex.Message);
         }
+        catch (Exception ex) when (!announce)
+        {
+            // Фоновое чтение никто не ждёт: исключение отсюда ушло бы в никуда.
+            // Разборщик кривого файла может бросить что угодно - пусть это
+            // останется записью в журнале, а не тихой потерей.
+            Log.Error(Loc.Get("err.readSave", ex.GetType().Name + ": " + ex.Message), SelectedSaveFile.Path);
+        }
         finally
         {
+            _readingContext = false;
             if (announce) IsBusy = false;
         }
     }
@@ -1275,9 +1292,13 @@ public sealed class MainViewModel : ViewModelBase
                 RefreshSnapshots();
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            Log.Error(Loc.Get("err.autoSnap", ex.Message), path);
+            // Задача запущена без ожидания: всё, что вылетит отсюда, иначе
+            // пропадёт без следа. В журнал - и тип, чтобы было по чему искать.
+            Log.Error(Loc.Get("err.autoSnap", ex is IOException or UnauthorizedAccessException
+                ? ex.Message
+                : ex.GetType().Name + ": " + ex.Message), path);
         }
     }
 

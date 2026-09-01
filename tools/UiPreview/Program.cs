@@ -31,6 +31,14 @@ seed.Values.AutoSnapshotFolder = null;
 seed.Values.LastSnapshotName = null;
 seed.Save();
 
+// Замеры вместо снимков: ERDTREE_KEEPER_BENCH=<путь к .sl2>. Окно не нужно,
+// поэтому выходим до старта Avalonia.
+if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_BENCH") is { Length: > 0 } benchSave && File.Exists(benchSave))
+{
+    await Bench(benchSave);
+    return;
+}
+
 Directory.CreateDirectory(outputDir);
 
 AppBuilder.Configure<App>()
@@ -39,8 +47,120 @@ AppBuilder.Configure<App>()
     .WithInterFont()
     .Start((_, _) => Shoot(outputDir, width, height), args);
 
+static async Task Bench(string savePath)
+{
+    var sw = new System.Diagnostics.Stopwatch();
+    double Ms() => sw.Elapsed.TotalMilliseconds;
+
+    Console.WriteLine($"Файл: {new FileInfo(savePath).Length / 1024 / 1024} МБ");
+
+    // Чтение: первый раз - холодный кэш ОС, дальше тёплый.
+    for (var i = 0; i < 3; i++)
+    {
+        sw.Restart();
+        var bytes = await Sl2File.ReadAllBytesSharedAsync(savePath);
+        Console.WriteLine($"чтение файла #{i + 1}: {Ms():0} мс ({bytes.Length} байт)");
+    }
+
+    var data = await Sl2File.ReadAllBytesSharedAsync(savePath);
+
+    for (var i = 0; i < 3; i++)
+    {
+        sw.Restart();
+        var ctx = SaveContextReader.Read(data);
+        Console.WriteLine($"разбор сейва #{i + 1}: {Ms():0} мс -> {ctx?.Location?.Display}");
+    }
+
+    for (var i = 0; i < 3; i++)
+    {
+        sw.Restart();
+        var report = Sl2File.CheckIntegrity(data);
+        Console.WriteLine($"целостность (11 x MD5) #{i + 1}: {Ms():0} мс, всё ок = {report.AllOk}");
+    }
+
+    sw.Restart();
+    _ = System.Security.Cryptography.SHA256.HashData(data);
+    Console.WriteLine($"SHA-256 одного файла: {Ms():0} мс");
+
+    var temp = Path.Combine(Path.GetTempPath(), "erdtree-keeper-bench", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(temp);
+    var service = new SnapshotService(new ActivityLog());
+    try
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            sw.Restart();
+            var result = await service.CreateAsync(savePath, temp, $"bench-{i}.sl2", overwrite: true);
+            Console.WriteLine($"создание снимка #{i + 1}: {Ms():0} мс, успех = {result.Success}");
+        }
+
+        var game = Path.Combine(temp, "game");
+        Directory.CreateDirectory(game);
+        var gameSave = Path.Combine(game, "ER0000.sl2");
+        File.Copy(savePath, gameSave);
+        sw.Restart();
+        var restore = await service.RestoreAsync(Path.Combine(temp, "bench-0.sl2"), gameSave);
+        Console.WriteLine($"восстановление в игру (с резервной копией): {Ms():0} мс, успех = {restore.Success}");
+
+        // Большая папка: 500 снимков. Список и естественная сортировка.
+        var many = Path.Combine(temp, "many");
+        Directory.CreateDirectory(many);
+        for (var i = 0; i < 500; i++)
+            File.WriteAllBytes(Path.Combine(many, $"DLC_Место {i % 40}_{2026:0000}-08-{i % 28 + 1:00}_{i % 24:00}-{i % 60:00}-00.sl2"), []);
+        sw.Restart();
+        var list = service.List(many);
+        var listMs = Ms();
+        sw.Restart();
+        var sorted = list.OrderBy(x => x.Name, NaturalFileNameComparer.Instance).ToList();
+        Console.WriteLine($"список из {list.Count} файлов: {listMs:0} мс, естественная сортировка: {Ms():0} мс ({sorted.Count})");
+
+        sw.Restart();
+        var removed = service.Rotate(many, 10);
+        Console.WriteLine($"ротация 500 -> 10: {Ms():0} мс, удалено {removed}");
+    }
+    finally
+    {
+        try { Directory.Delete(temp, recursive: true); } catch (IOException) { }
+    }
+
+    // Память: десять чтений подряд не должны накапливаться.
+    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+    var before = GC.GetTotalMemory(true) / 1024 / 1024;
+    for (var i = 0; i < 10; i++)
+    {
+        var b = await Sl2File.ReadAllBytesSharedAsync(savePath);
+        _ = SaveContextReader.Read(b);
+    }
+    var peak = GC.GetTotalMemory(false) / 1024 / 1024;
+    GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+    var after = GC.GetTotalMemory(true) / 1024 / 1024;
+    Console.WriteLine($"память: до {before} МБ, пик после 10 чтений {peak} МБ, после сборки {after} МБ");
+    Console.WriteLine($"рабочий набор процесса: {Environment.WorkingSet / 1024 / 1024} МБ");
+}
+
 static void Shoot(string outputDir, int width, int height)
 {
+    // Проверка перехвата: исключение в UI-потоке не должно ронять процесс,
+    // а должно оставить запись в журнале аварий.
+    if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_CRASHTEST") == "1")
+    {
+        CrashGuard.SuppressDialogs = true;
+        CrashGuard.InstallDispatcherHandler();
+        var logPath = Path.Combine(PortableSettings.AppFolder, CrashGuard.LogFileName);
+        File.Delete(logPath);
+
+        Dispatcher.UIThread.Post(() => throw new InvalidOperationException("нарочно: проверка перехвата"));
+        for (var i = 0; i < 10; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(50); }
+
+        var logged = File.Exists(logPath) && File.ReadAllText(logPath).Contains("проверка перехвата");
+        Console.WriteLine($"   перехвачено: {CrashGuard.Caught}, журнал аварий записан: {logged}");
+        Console.WriteLine(CrashGuard.Caught == 1 && logged
+            ? "   ПРОВЕРКА ПЕРЕХВАТА ПРОЙДЕНА: процесс жив, след оставлен"
+            : "   ПРОВЕРКА ПЕРЕХВАТА НЕ ПРОЙДЕНА");
+        File.Delete(logPath);
+        return;
+    }
+
     // Первый запуск: с приветственным экраном.
     var firstModel = NewModel();
     UseFakeAccount(firstModel);

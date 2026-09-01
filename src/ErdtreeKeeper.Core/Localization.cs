@@ -491,6 +491,15 @@ public sealed class Loc : INotifyPropertyChanged
         ["startup.missingBody"] = (
             "Рядом с программой не хватает файлов:\n\n{0}\n\nСкорее всего, из архива распакован только ErdtreeKeeper.exe. Распакуйте архив целиком - библиотеки должны лежать в одной папке с программой.\n\nПапка: {1}",
             "Files are missing next to the program:\n\n{0}\n\nMost likely only ErdtreeKeeper.exe was extracted from the archive. Extract the whole archive - the libraries have to sit in the same folder as the program.\n\nFolder: {1}"),
+        ["crash.title"] = ("Erdtree Keeper: ошибка", "Erdtree Keeper: error"),
+        ["crash.body"] = (
+            "В программе произошла ошибка. Ваши сохранения не тронуты: программа ничего не записывает без вашей команды.",
+            "The program ran into an error. Your saves are untouched: nothing is written without your command."),
+        ["crash.logAt"] = (
+            "Подробности записаны в файл:\n{0}\n\nЕсли ошибка повторяется, приложите этот файл к сообщению на admin@krut.top.",
+            "Details were written to:\n{0}\n\nIf it happens again, attach that file to a message to admin@krut.top."),
+        ["crash.logFailed"] = ("(записать файл не удалось)", "(the file could not be written)"),
+        ["crash.willClose"] = ("Программу придётся закрыть.", "The program has to close."),
         ["err.crashTitle"] = (
             "Что-то пошло не так",
             "Something went wrong"),
