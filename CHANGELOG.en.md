@@ -16,9 +16,7 @@ the bottom of the window and in the "About" dialog.
 
 ## 1.5.0
 
-The program stopped being a save keeper for one game. Dark Souls, Sekiro and Armored Core VI
-joined it, any other Steam game can be added by hand, and an update check appeared - which
-changed one of the promises, covered separately below.
+The program stopped being a save keeper for one game and learned to update itself.
 
 ### Added
 
@@ -27,60 +25,40 @@ changed one of the promises, covered separately below.
   Remastered, Dark Souls II, Dark Souls III, Sekiro and Armored Core VI. The program knows
   where each of them keeps its saves and tells their files from everything else.
 
-  Each game keeps its own snapshot folder and its own choice of account and file. That is
-  not decoration: a shared list would mean Dark Souls snapshots mixed in with Elden Ring
-  copies, and a bulk delete or an autosave rotation reaching across into someone else's
-  files.
+  Each game keeps its own snapshot folder and its own choice of account and file: a shared
+  list would mean Dark Souls snapshots mixed in with Elden Ring copies, and a bulk delete or
+  an autosave rotation reaching into another game's files.
 
 - **Any Steam game, through the "+ game" button.** The window lists installed games that
   have a cloud save folder, read from Steam's own files on disk (`libraryfolders.vdf` and
-  `appmanifest_*.acf`) - no outward request is needed for that. When the saves live
-  elsewhere the folder can be picked by hand, together with the file extensions and,
-  optionally, the game's process name, which lets the program warn you that the game is
-  running.
+  `appmanifest_*.acf`). When the saves live elsewhere the folder can be picked by hand,
+  together with the file extensions and, optionally, the game's process name, which lets the
+  program warn you that the game is running.
 
   Everything after that is the same as with Elden Ring: a copy verified by SHA-256, a
   refusal if the game was still writing during the copy, and a mandatory backup before a
   snapshot goes back into the game.
 
-- **Update check.** The "Updates" button in the title bar asks GitHub about a new version,
+- **Updates from a button.** "Updates" in the title bar asks GitHub about a new version,
   shows the release notes, downloads the archive, verifies it against the published checksum
   and replaces the program files. Settings and snapshots are left alone: only what was in
-  the archive is replaced.
+  the archive is replaced. Checking on start can be turned on, a version can be skipped, and
+  going online can be forbidden entirely.
 
   The installation is carried out by the downloaded program itself, started from a temporary
   folder with a special switch: it waits for the previous copy to close, moves the files and
-  starts the updated one. The usual way is a .bat file; that was avoided on purpose - the
-  copying is done by the very file whose checksum was just verified against the published
-  one, not by a script that appeared out of nowhere.
+  starts the updated one. No .bat files: the copying is done by the very file whose checksum
+  was just verified against the published one.
+
+  There is one request address and it is written into the code, links inside the answer are
+  checked against a list of GitHub hosts, every request goes into the activity log under the
+  `NET` tag, and an archive whose checksum does not match is deleted.
 
 - **A "+ time" button for snapshot names.** For games whose saves the program does not
   parse, a location cannot be inserted, and the date and time are the only thing that
   meaningfully tells one snapshot from another.
 
 ### Changed
-
-- **The promise about the network changed, and that is the main thing in this release.**
-  The program used to be unable to go online at all: the built file imported no networking
-  library, and one command proved it. The import table now contains `WS2_32.dll`,
-  `CRYPT32.dll`, `ncrypt.dll` and `IPHLPAPI.DLL`.
-
-  In exchange, what replaced it can be checked by behaviour rather than by a list of
-  libraries:
-
-  - not a single request goes out without permission, and permission is asked once, in a
-    window of its own, explaining where and what for;
-  - there is one address and it is written into the code; links inside the answer are
-    checked against a list of GitHub hosts, so a tampered answer will not make the program
-    download from a foreign server;
-  - nothing is sent: no identifiers, nothing about the machine, nothing about the saves;
-  - every request is visible in the activity log under its own `NET` tag, with the full
-    address;
-  - what is downloaded is verified against the checksum from the same release, or the file
-    is deleted.
-
-  README and SECURITY say this plainly, new import table included: you would find it
-  yourself, and reading about it in advance beats concluding that you were lied to.
 
 - **The depth of the integrity check is now stated honestly.** For Elden Ring all 11
   checksums are still recomputed. For the other FromSoftware games the BND4 container
@@ -92,6 +70,9 @@ changed one of the promises, covered separately below.
 - **Settings moved.** The snapshot folder and the last account and file are now stored per
   game. Previous values are carried over into the Elden Ring entry on first launch, so the
   list of snapshots stays the same after the update.
+
+- The build check that watched for the absence of networking libraries was replaced by an
+  address check: the built exe must carry exactly the GitHub address stated in README.
 
 ### Verified
 

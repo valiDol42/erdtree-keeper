@@ -42,18 +42,28 @@ jobs:
           Write-Host "PE subsystem: $subsystem"
           if ($subsystem -ne 2) { throw "Ожидалась подсистема GUI (2), получено $subsystem" }
 
-      - name: Проверить, что в exe нет сетевых библиотек
-        # README обещает, что программа не умеет выходить в интернет. Если
-        # кто-то добавит зависимость, открывающую сокеты, сборка должна упасть,
-        # а не тихо превратить обещание в неправду.
+      - name: Проверить адреса внутри exe
+        # С появлением обновлений программа умеет открывать соединения, и
+        # сторожить теперь надо не сам факт, а куда они идут. В сборке должен
+        # быть ровно один адрес - тот, что заявлен в README. Появился другой
+        # или пропал этот - сборка падает.
         shell: pwsh
         run: |
           $bytes = [IO.File]::ReadAllBytes("out/ErdtreeKeeper.exe")
-          $text = [Text.Encoding]::ASCII.GetString($bytes)
-          $forbidden = @('ws2_32.dll', 'wininet.dll', 'winhttp.dll', 'urlmon.dll', 'wsock32.dll')
+          $text = [Text.Encoding]::Unicode.GetString($bytes) + [Text.Encoding]::ASCII.GetString($bytes)
+
+          $expected = 'https://api.github.com/repos/valiDol42/erdtree-keeper/releases/latest'
+          if ($text -notmatch [regex]::Escape($expected)) {
+            throw "В exe нет заявленного адреса проверки обновлений"
+          }
+
+          # Устаревшие способы ходить в сеть: ими программа не пользуется, и
+          # появление любого из них означает чью-то лишнюю зависимость.
+          $forbidden = @('wininet.dll', 'urlmon.dll', 'wsock32.dll')
           $found = $forbidden | Where-Object { $text -match [regex]::Escape($_) }
-          if ($found) { throw "В exe попали сетевые библиотеки: $($found -join ', ')" }
-          Write-Host "Сетевых библиотек нет"
+          if ($found) { throw "В exe попали лишние сетевые библиотеки: $($found -join ', ')" }
+
+          Write-Host "Адрес обновлений на месте, лишних библиотек нет"
 
       - uses: actions/upload-artifact@v4
         with:

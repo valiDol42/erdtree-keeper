@@ -40,40 +40,17 @@ VirusTotal shows the name `ErdtreeKeeper.dll` even though the file is an `.exe`.
 internal .NET assembly name stored inside the exe; it is the same file, and the matching
 checksum confirms it.
 
-**The program goes online only for updates, and only with your permission.** Permission is
-asked once, in a window of its own, and until you answer, not a single request goes out.
-What that means in practice:
+**The program goes online only for updates.** There is one address and it is written into
+the code - `https://api.github.com/repos/valiDol42/erdtree-keeper/releases/latest`. Links
+inside the answer are checked against a list of GitHub hosts, the downloaded archive is
+verified against the published checksum, and every request goes into the activity log under
+the `NET` tag, with the full address. Nothing about you is sent: no identifiers, nothing
+about the machine, nothing about the saves.
 
-- there is one address and it is written into the code -
-  `https://api.github.com/repos/valiDol42/erdtree-keeper/releases/latest`. Links inside the
-  answer are checked against a list of GitHub hosts: a tampered answer will not make the
-  program download a file from somewhere else;
-- nothing is sent. The request carries no identifiers and nothing about you, your machine
-  or your saves;
-- every request goes into the activity log under its own `NET` tag, with the full address.
-  The log is visible in the window and exports to a text file;
-- the downloaded archive is checked against the checksum published with the release. No
-  match, and the file is deleted and nothing is installed;
-- saying no breaks nothing: you can always update by hand from the releases page.
-
-Until version 1.5.0 this section made a stronger claim: the program could not go online at
-all, because the built file imported no networking library. Updates made that untrue, and
-**the import table of the exe now contains** `WS2_32.dll`, `CRYPT32.dll`, `ncrypt.dll` and
-`IPHLPAPI.DLL` - the libraries needed to open a secure connection:
-
-```
-> dumpbin /dependents ErdtreeKeeper.exe
-
-ADVAPI32.dll        bcrypt.dll          CRYPT32.dll         IPHLPAPI.DLL
-KERNEL32.dll        ncrypt.dll          ole32.dll           OLEAUT32.dll
-WS2_32.dll          api-ms-win-crt-*.dll
-```
-
-This is written here for the same reason as everything else in this section: you would find
-it yourself, and reading about it in advance beats concluding that you were lied to. What to
-check is no longer the list of libraries but the behaviour: **until you press "Check for
-updates" the program opens no connection at all**, and any connection monitor shows it -
-TCPView or the Windows resource monitor.
+You are asked once, the first time the check is used, and the answer is remembered. Without
+that permission the program opens no connection at all, which any connection monitor shows -
+TCPView or the Windows resource monitor. The imports carry `WS2_32.dll` and `CRYPT32.dll`
+for the connection.
 
 **The program does not alter save contents.** It copies the file whole, byte for byte, and
 verifies the copy by SHA-256. It only looks inside the save - to show the character name and
