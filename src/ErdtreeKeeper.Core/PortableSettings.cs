@@ -3,23 +3,68 @@ using System.Text.Json.Serialization;
 
 namespace ErdtreeKeeper.Core;
 
-/// <summary>Всё, что приложение запоминает между запусками.</summary>
-public sealed class Settings
+/// <summary>
+/// Игра, добавленная человеком вручную.
+///
+/// Это не профиль, а то, что от него остаётся на диске: профиль из этой записи
+/// собирается при загрузке. Поля простые и с сеттерами - иначе их не прочитать
+/// генератором JSON, который в сборке NativeAOT работает вместо отражения.
+/// </summary>
+public sealed class CustomGame
 {
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+
+    /// <summary>Папка с сохранениями. Для облачной - путь до remote внутри userdata.</summary>
+    public string? Folder { get; set; }
+
+    /// <summary>Папка найдена в облаке Steam, а не указана вручную. Различие только для подписи.</summary>
+    public bool IsSteamCloud { get; set; }
+
+    /// <summary>Идентификатор игры в Steam, если он известен. Нужен для подписи и поиска.</summary>
+    public string? AppId { get; set; }
+
+    /// <summary>Расширения через запятую. Пусто - любые файлы.</summary>
+    public string? Extensions { get; set; }
+
+    /// <summary>Главный файл сохранения: он выбирается в списке первым.</summary>
+    public string? PrimaryFile { get; set; }
+
+    /// <summary>Имя процесса игры - по нему видно, что игра запущена.</summary>
+    public string? Process { get; set; }
+}
+
+/// <summary>
+/// Что программа помнит про одну игру.
+///
+/// Папки и последний выбор у каждой игры свои: снимки Dark Souls III не должны
+/// попадать в список Elden Ring, а удаление по кнопке - задевать чужие файлы.
+/// </summary>
+public sealed class GameState
+{
+    public string? SnapshotFolder { get; set; }
+    public string? AutoSnapshotFolder { get; set; }
     public string? LastAccountId { get; set; }
     public string? LastFileName { get; set; }
     public string? LastSnapshotName { get; set; }
+}
 
-    /// <summary>Куда складывать снимки. По умолчанию - папка рядом с программой.</summary>
-    public string? SnapshotFolder { get; set; }
+/// <summary>Всё, что приложение запоминает между запусками.</summary>
+public sealed class Settings
+{
+    /// <summary>Игра, выбранная в прошлый раз.</summary>
+    public string? SelectedGameId { get; set; }
+
+    /// <summary>Игры, добавленные вручную.</summary>
+    public List<CustomGame> CustomGames { get; set; } = [];
+
+    /// <summary>Папки и выбор по каждой игре.</summary>
+    public Dictionary<string, GameState> Games { get; set; } = new();
 
     /// <summary>Подписи аккаунтов: длинный SteamID -> человеческое имя.</summary>
     public Dictionary<string, string> Aliases { get; set; } = new();
 
     public bool AutoSnapshotEnabled { get; set; }
-
-    /// <summary>Куда складывать автосохранения. Пусто - подпапка рядом со снимками.</summary>
-    public string? AutoSnapshotFolder { get; set; }
 
     /// <summary>
     /// Не чаще одного автосохранения за столько минут.
@@ -36,10 +81,36 @@ public sealed class Settings
 
     /// <summary>Выбранный язык. Пусто - берём из системы при первом запуске.</summary>
     public string? Language { get; set; }
+
+    /// <summary>
+    /// Разрешено ли программе обращаться к GitHub за обновлениями.
+    ///
+    /// Три состояния, и третье - главное: пусто означает, что человека ещё не
+    /// спрашивали. Без разрешения не уходит ни один запрос, поэтому умолчания
+    /// "включено" здесь быть не может.
+    /// </summary>
+    public bool? UpdatesAllowed { get; set; }
+
+    /// <summary>Проверять при запуске - отдельно от самого разрешения.</summary>
+    public bool UpdatesCheckOnStart { get; set; }
+
+    /// <summary>Когда проверяли в последний раз (UTC, ISO-8601).</summary>
+    public string? LastUpdateCheck { get; set; }
+
+    /// <summary>Версия, о которой попросили больше не напоминать.</summary>
+    public string? SkippedVersion { get; set; }
+
+    // ─── Прежние поля: читаются ради переноса и больше не пишутся ───────
+
+    public string? LastAccountId { get; set; }
+    public string? LastFileName { get; set; }
+    public string? LastSnapshotName { get; set; }
+    public string? SnapshotFolder { get; set; }
+    public string? AutoSnapshotFolder { get; set; }
 }
 
 [JsonSerializable(typeof(Settings))]
-[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSourceGenerationOptions(WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 internal partial class SettingsJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -50,7 +121,7 @@ internal partial class SettingsJsonContext : JsonSerializerContext;
 /// ничего. Это же и вопрос доверия: видно, что программа пишет ровно один файл
 /// и ровно там, где лежит сама.
 ///
-/// Если папка programme недоступна для записи (например, программу положили в
+/// Если папка программы недоступна для записи (например, программу положили в
 /// Program Files), настройки уходят в %APPDATA% - иначе они просто терялись бы
 /// молча. Фактический путь всегда показан в окне "О программе".
 /// </summary>
@@ -59,11 +130,12 @@ public sealed class PortableSettings
     private const string FileName = "erdtree-keeper.settings.json";
     private readonly object _lock = new();
 
-    private PortableSettings(string path, Settings values, bool isPortable)
+    private PortableSettings(string path, Settings values, bool isPortable, string appFolder)
     {
         Path = path;
         Values = values;
         IsPortable = isPortable;
+        AppFolderUsed = appFolder;
     }
 
     /// <summary>Полный путь к файлу настроек.</summary>
@@ -71,6 +143,9 @@ public sealed class PortableSettings
 
     /// <summary>Настройки лежат рядом с программой, а не в системной папке.</summary>
     public bool IsPortable { get; }
+
+    /// <summary>Папка программы, от которой считаются папки снимков по умолчанию.</summary>
+    public string AppFolderUsed { get; }
 
     public Settings Values { get; }
 
@@ -124,14 +199,86 @@ public sealed class PortableSettings
                      ?? (portable ? null : ReadOrDefault(portablePath))
                      ?? new Settings();
 
-        // Имя папки по умолчанию берётся из перевода, поэтому язык нужен уже
-        // здесь. Текущий язык приложения при этом не трогается: чтение
-        // настроек не должно переключать язык всему окну - его применяет тот,
-        // кто эти настройки заказывал.
-        var language = LanguageOf(values);
-        values.SnapshotFolder ??= System.IO.Path.Combine(appFolder, Loc.Get(language, "path.snapshots"));
+        MigrateSingleGame(values);
 
-        return new PortableSettings(path, values, portable);
+        return new PortableSettings(path, values, portable, appFolder);
+    }
+
+    /// <summary>
+    /// Переносит настройки версий, знавших одну игру.
+    ///
+    /// До появления выбора игры папка снимков и последний файл лежали прямо в
+    /// корне настроек. Теперь у каждой игры своё место, и старые значения
+    /// становятся записью про Elden Ring - иначе после обновления человек
+    /// увидел бы пустой список там, где у него лежали все копии.
+    /// </summary>
+    private static void MigrateSingleGame(Settings values)
+    {
+        var hasOld = values.SnapshotFolder is not null
+                     || values.LastAccountId is not null
+                     || values.LastFileName is not null
+                     || values.LastSnapshotName is not null
+                     || values.AutoSnapshotFolder is not null;
+
+        if (hasOld && !values.Games.ContainsKey(GameProfiles.EldenRingId))
+        {
+            values.Games[GameProfiles.EldenRingId] = new GameState
+            {
+                SnapshotFolder = values.SnapshotFolder,
+                AutoSnapshotFolder = values.AutoSnapshotFolder,
+                LastAccountId = values.LastAccountId,
+                LastFileName = values.LastFileName,
+                LastSnapshotName = values.LastSnapshotName,
+            };
+        }
+
+        values.SnapshotFolder = null;
+        values.AutoSnapshotFolder = null;
+        values.LastAccountId = null;
+        values.LastFileName = null;
+        values.LastSnapshotName = null;
+
+        values.SelectedGameId ??= GameProfiles.EldenRingId;
+    }
+
+    /// <summary>
+    /// Все игры: встроенные и добавленные вручную.
+    ///
+    /// Порядок постоянный - встроенные так, как они перечислены в коде, а свои
+    /// следом, в порядке добавления.
+    /// </summary>
+    public IReadOnlyList<GameProfile> AllGames()
+    {
+        var all = new List<GameProfile>(GameProfiles.BuiltIn);
+        all.AddRange(Values.CustomGames.Select(GameProfiles.FromCustom));
+        return all;
+    }
+
+    /// <summary>Запомненное про игру, с созданием записи при первом обращении.</summary>
+    public GameState StateOf(GameProfile game)
+    {
+        if (Values.Games.TryGetValue(game.Id, out var state)) return state;
+
+        state = new GameState();
+        Values.Games[game.Id] = state;
+        return state;
+    }
+
+    /// <summary>
+    /// Папка снимков по умолчанию.
+    ///
+    /// Для Elden Ring - "Снимки" рядом с программой, как было всегда. Для
+    /// остальных игр внутри неё заводится подпапка с названием игры: иначе
+    /// копии разных игр смешались бы в одном списке, а удаление по кнопке
+    /// задело бы чужие.
+    /// </summary>
+    public string DefaultSnapshotFolder(GameProfile game)
+    {
+        var root = System.IO.Path.Combine(AppFolderUsed, Loc.Get(Language, "path.snapshots"));
+        if (game.Id == GameProfiles.EldenRingId) return root;
+
+        var folder = SnapshotNaming.Sanitize(game.Name);
+        return System.IO.Path.Combine(root, folder.Length > 0 ? folder : game.Id);
     }
 
     /// <summary>

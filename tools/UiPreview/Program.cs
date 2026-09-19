@@ -26,10 +26,25 @@ Environment.SetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG", wanted);
 // русская папка "Снимки".
 var seed = PortableSettings.Load();
 seed.Values.Language = wanted == "en" ? nameof(Lang.En) : nameof(Lang.Ru);
-seed.Values.SnapshotFolder = null;
-seed.Values.AutoSnapshotFolder = null;
-seed.Values.LastSnapshotName = null;
+seed.Values.Games.Clear();
+seed.Values.CustomGames.Clear();
+seed.Values.SelectedGameId = GameProfiles.EldenRingId;
+
+// Разрешение на сеть сбрасывается нарочно: ниже проверяется, что без него
+// программа не делает ни одного запроса, и оставшееся с прошлого запуска
+// "разрешено" эту проверку обессмыслило бы.
+seed.Values.UpdatesAllowed = null;
+seed.Values.UpdatesCheckOnStart = false;
 seed.Save();
+
+// Настоящая проверка обновления: ERDTREE_KEEPER_NETTEST=check спрашивает
+// GitHub, =full ещё и качает архив со сверкой контрольной суммы. Окно не
+// нужно - выходим до старта Avalonia.
+if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_NETTEST") is { Length: > 0 } netMode)
+{
+    await NetTest(netMode == "full");
+    return;
+}
 
 // Замеры вместо снимков: ERDTREE_KEEPER_BENCH=<путь к .sl2>. Окно не нужно,
 // поэтому выходим до старта Avalonia.
@@ -46,6 +61,112 @@ AppBuilder.Configure<App>()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
     .WithInterFont()
     .Start((_, _) => Shoot(outputDir, width, height), args);
+
+/// <summary>
+/// Проверка установки: обновление обязано заменить свои файлы и не тронуть
+/// чужие. Настройки и снимки лежат в той же папке, и потерять их при
+/// обновлении - худшее, что программа может сделать с человеком, который ей
+/// как раз и доверил хранение сейвов.
+/// </summary>
+static void InstallTest()
+{
+    var root = Path.Combine(Path.GetTempPath(), "erdtree-keeper-installtest", Guid.NewGuid().ToString("N"));
+    var target = Path.Combine(root, "программа");
+    var staging = Path.Combine(root, "новое");
+    Directory.CreateDirectory(target);
+    Directory.CreateDirectory(staging);
+
+    try
+    {
+        // Так выглядит папка работающей программы: сама программа, библиотеки,
+        // настройки и снимки рядом.
+        File.WriteAllText(Path.Combine(target, "ErdtreeKeeper.exe"), "старая программа");
+        File.WriteAllText(Path.Combine(target, "libSkiaSharp.dll"), "старая библиотека");
+        File.WriteAllText(Path.Combine(target, "erdtree-keeper.settings.json"), "{\"мои\": \"настройки\"}");
+        Directory.CreateDirectory(Path.Combine(target, "Снимки"));
+        File.WriteAllText(Path.Combine(target, "Снимки", "Годрик.sl2"), "мой снимок");
+
+        // А так - распакованный архив нового выпуска.
+        File.WriteAllText(Path.Combine(staging, "ErdtreeKeeper.exe"), "новая программа");
+        File.WriteAllText(Path.Combine(staging, "libSkiaSharp.dll"), "новая библиотека");
+        File.WriteAllText(Path.Combine(staging, "README.md"), "новое описание");
+
+        ErdtreeKeeper.Updates.UpdateInstaller.TryRunAsInstaller([
+            "--apply-update",
+            "--from", staging,
+            "--to", target,
+            ErdtreeKeeper.Updates.UpdateInstaller.NoLaunchSwitch,
+        ]);
+
+        var problem = ErdtreeKeeper.Updates.UpdateInstaller.LastProblem;
+        var programUpdated = File.ReadAllText(Path.Combine(target, "ErdtreeKeeper.exe")) == "новая программа";
+        var libraryUpdated = File.ReadAllText(Path.Combine(target, "libSkiaSharp.dll")) == "новая библиотека";
+        var readmeAdded = File.Exists(Path.Combine(target, "README.md"));
+        var settingsKept = File.ReadAllText(Path.Combine(target, "erdtree-keeper.settings.json")).Contains("настройки");
+        var snapshotKept = File.ReadAllText(Path.Combine(target, "Снимки", "Годрик.sl2")) == "мой снимок";
+
+        Console.WriteLine($"   помеха: {problem ?? "нет"}");
+        Console.WriteLine($"   программа заменена: {programUpdated}");
+        Console.WriteLine($"   библиотека заменена: {libraryUpdated}");
+        Console.WriteLine($"   новые файлы добавлены: {readmeAdded}");
+        Console.WriteLine($"   настройки целы: {settingsKept}");
+        Console.WriteLine($"   снимок цел: {snapshotKept}");
+
+        Console.WriteLine(problem is null && programUpdated && libraryUpdated
+                          && readmeAdded && settingsKept && snapshotKept
+            ? "   ПРОВЕРКА УСТАНОВКИ ПРОЙДЕНА: своё заменено, чужое не тронуто"
+            : "   ПРОВЕРКА УСТАНОВКИ НЕ ПРОЙДЕНА");
+    }
+    finally
+    {
+        try { Directory.Delete(root, recursive: true); } catch (IOException) { }
+    }
+}
+
+/// <summary>
+/// Проверка обновления на живом GitHub: то, что нельзя доказать тестом без
+/// сети. Скачанный архив сверяется с опубликованной суммой - ради этого всё
+/// и затевалось.
+/// </summary>
+static async Task NetTest(bool full)
+{
+    var log = new ActivityLog();
+    var updates = new ErdtreeKeeper.Updates.UpdateService(log);
+
+    Console.WriteLine($"установлена версия: {AppInfo.Version}");
+    Console.WriteLine($"адрес запроса: {AppUpdate.LatestReleaseUrl}");
+
+    var status = await updates.CheckAsync();
+    Console.WriteLine($"ответ: {status.State} - {status.Message}");
+
+    if (status.Release is { } release)
+    {
+        Console.WriteLine($"выпуск: {release.Tag}, файлов приложено: {release.Assets.Count}");
+        Console.WriteLine($"архив: {release.Package?.Name ?? "(нет)"}");
+        Console.WriteLine($"суммы: {release.Checksums?.Name ?? "(нет)"}");
+    }
+
+    if (full && status.Release is { } toDownload)
+    {
+        var progress = new Progress<double>(v =>
+        {
+            if (Math.Abs(v * 100 % 25) < 0.5) Console.WriteLine($"   скачано {v * 100:0}%");
+        });
+
+        var result = await updates.DownloadAsync(toDownload, progress);
+        Console.WriteLine($"скачивание: успех = {result.Success}, {result.Message}");
+
+        if (result.Folder is not null)
+        {
+            var files = Directory.GetFiles(result.Folder).Select(Path.GetFileName).ToList();
+            Console.WriteLine($"распаковано файлов: {files.Count} - {string.Join(", ", files)}");
+            Console.WriteLine($"сумма архива: {result.Sha256}");
+        }
+    }
+
+    Console.WriteLine("--- журнал ---");
+    foreach (var entry in log.Entries.Reverse()) Console.WriteLine($"   {entry.Line}");
+}
 
 static async Task Bench(string savePath)
 {
@@ -108,14 +229,14 @@ static async Task Bench(string savePath)
         for (var i = 0; i < 500; i++)
             File.WriteAllBytes(Path.Combine(many, $"DLC_Место {i % 40}_{2026:0000}-08-{i % 28 + 1:00}_{i % 24:00}-{i % 60:00}-00.sl2"), []);
         sw.Restart();
-        var list = service.List(many);
+        var list = service.List(many, GameProfiles.EldenRing);
         var listMs = Ms();
         sw.Restart();
         var sorted = list.OrderBy(x => x.Name, NaturalFileNameComparer.Instance).ToList();
         Console.WriteLine($"список из {list.Count} файлов: {listMs:0} мс, естественная сортировка: {Ms():0} мс ({sorted.Count})");
 
         sw.Restart();
-        var removed = service.Rotate(many, 10);
+        var removed = service.Rotate(many, 10, GameProfiles.EldenRing);
         Console.WriteLine($"ротация 500 -> 10: {Ms():0} мс, удалено {removed}");
     }
     finally
@@ -370,6 +491,76 @@ static void Shoot(string outputDir, int width, int height)
             "Очень длинная строка, которая заведомо шире окна и должна прокручиваться, а не обрезаться молча.", 3))),
         "06-длинный-текст.png", outputDir);
 
+    // ─── Игры ───────────────────────────────────────────────────────
+
+    // Окно добавления игры. Список игр Steam читается с диска, поэтому на
+    // машине без Steam он честно окажется пустым - окно от этого не ломается.
+    Capture(
+        AddGameDialog.Create((_, _) => Task.FromResult<string?>(null), _ => { }),
+        "12-добавить-игру.png", outputDir);
+
+    // Переключение на другую игру: папка снимков и список обязаны смениться,
+    // иначе копии разных игр смешаются в одном списке.
+    var games = NewModel();
+    games.DismissOnboardingCommand.Execute(null);
+    UseFakeAccount(games);
+
+    var eldenRingFolder = games.SnapshotFolder;
+    var eldenRingCount = games.Snapshots.Count;
+
+    var darkSouls = games.Games.First(g => g.Id == "dark-souls-3");
+    games.SelectedGame = darkSouls;
+    for (var i = 0; i < 20; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(50); }
+
+    Console.WriteLine($"   игра: {games.Game.Name}");
+    Console.WriteLine($"   папка снимков: {eldenRingFolder}");
+    Console.WriteLine($"                  -> {games.SnapshotFolder}");
+    Console.WriteLine($"   снимков в списке: {eldenRingCount} -> {games.Snapshots.Count}");
+    Console.WriteLine($"   кнопка \"+ локация\" доступна: {games.AddLocationCommand.CanExecute(null)}");
+    Console.WriteLine($"   что проверяет кнопка целостности: {games.IntegrityNote}");
+
+    var foldersDiffer = !string.Equals(eldenRingFolder, games.SnapshotFolder, StringComparison.OrdinalIgnoreCase);
+    var mapNamesOff = !games.AddLocationCommand.CanExecute(null);
+    Console.WriteLine(foldersDiffer && mapNamesOff
+        ? "   ПРОВЕРКА ИГР ПРОЙДЕНА: своя папка, кнопки места выключены"
+        : "   ПРОВЕРКА ИГР НЕ ПРОЙДЕНА");
+
+    Capture(
+        new MainWindow { DataContext = games, Width = width, Height = height },
+        "13-другая-игра.png", outputDir);
+
+    // Возвращаем Elden Ring: настройки общие, и следующий запуск стенда
+    // должен начинаться с того же, с чего начинался этот.
+    games.SelectedGame = games.Games.First(g => g.Id == GameProfiles.EldenRingId);
+
+    // ─── Обновления ─────────────────────────────────────────────────
+
+    // Окно обновлений в исходном состоянии: разрешения нет, и оно спрашивает.
+    // Сеть при этом не трогается - снимок можно делать без интернета.
+    var updates = NewModel();
+    Capture(
+        UpdateDialog.Create(updates, () => { }),
+        "14-обновления.png", outputDir);
+
+    // Главное обещание про сеть: без разрешения запуск программы не порождает
+    // ни одного обращения наружу. Проверяется по журналу, где сетевые записи
+    // идут отдельной меткой.
+    var quiet = NewModel();
+    quiet.DismissOnboardingCommand.Execute(null);
+    UseFakeAccount(quiet);
+
+    var load = quiet.LoadAsync();
+    for (var i = 0; i < 40 && !load.IsCompleted; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+
+    var networkEntries = quiet.Log.Entries.Count(e => e.Kind == ActivityKind.Network);
+    Console.WriteLine($"   разрешение на сеть: {(quiet.UpdatesAllowed is null ? "не спрашивали" : quiet.UpdatesAllowed.ToString())}");
+    Console.WriteLine($"   сетевых записей в журнале после запуска: {networkEntries}");
+    Console.WriteLine(networkEntries == 0
+        ? "   ПРОВЕРКА СЕТИ ПРОЙДЕНА: без разрешения ни одного запроса"
+        : "   ПРОВЕРКА СЕТИ НЕ ПРОЙДЕНА");
+
+    InstallTest();
+
     Console.WriteLine($"Готово: {Path.GetFullPath(outputDir)}");
 }
 
@@ -380,8 +571,12 @@ static void Shoot(string outputDir, int width, int height)
 static MainViewModel NewModel()
 {
     var model = new MainViewModel();
-    Loc.Current.Language =
-        Environment.GetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG") == "en" ? Lang.En : Lang.Ru;
+
+    // Язык переключается так же, как кнопкой в окне: модель держит снимок
+    // таблицы строк, и подмены Loc.Current.Language мало - разметка осталась
+    // бы на прежнем языке, а сообщения перешли на новый.
+    if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG") == "en") model.IsEnglish = true;
+    else model.IsRussian = true;
 
     // Первые записи журнала сделаны в конструкторе, на языке из настроек.
     // В работе так и надо, а для снимка экрана они бы смешали два языка.

@@ -10,6 +10,10 @@ public enum ActivityKind
     Delete,
     Warning,
     Error,
+
+    /// <summary>Обращение в интернет. Отдельной меткой: это единственное, что
+    /// программа делает не с файлами, и заметить его в журнале надо сразу.</summary>
+    Network,
 }
 
 /// <summary>Одна запись журнала: что программа сделала с файлами.</summary>
@@ -26,6 +30,7 @@ public sealed record ActivityEntry(DateTime At, ActivityKind Kind, string Messag
         ActivityKind.Delete => Loc.Get("log.delete"),
         ActivityKind.Warning => Loc.Get("log.warn"),
         ActivityKind.Error => Loc.Get("log.error"),
+        ActivityKind.Network => Loc.Get("log.net"),
         _ => Loc.Get("log.info"),
     };
 }
@@ -61,6 +66,9 @@ public sealed class ActivityLog
     public void Deleted(string message, string? path = null) => Add(ActivityKind.Delete, message, path);
     public void Warn(string message, string? path = null) => Add(ActivityKind.Warning, message, path);
     public void Error(string message, string? path = null) => Add(ActivityKind.Error, message, path);
+
+    /// <summary>Запрос в сеть: адрес записывается целиком, чтобы его можно было проверить.</summary>
+    public void Network(string message, string? path = null) => Add(ActivityKind.Network, message, path);
 
     /// <summary>Выгружает журнал в текстовый файл - его можно показать кому угодно.</summary>
     public async Task ExportAsync(string path, CancellationToken ct = default)

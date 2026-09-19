@@ -34,7 +34,7 @@ public class PortableSettingsTests : IDisposable
     public void Settings_survive_a_restart()
     {
         var first = PortableSettings.LoadFrom(_folder);
-        first.Values.LastAccountId = FakeSteamId;
+        first.StateOf(GameProfiles.EldenRing).LastAccountId = FakeSteamId;
         first.Values.Aliases[FakeSteamId] = "Основной";
         first.Values.AutoSnapshotEnabled = true;
         first.Values.AutoSnapshotMinutes = 12;
@@ -45,7 +45,7 @@ public class PortableSettingsTests : IDisposable
         // Так же, как при следующем запуске программы.
         var second = PortableSettings.LoadFrom(_folder);
 
-        Assert.Equal(FakeSteamId, second.Values.LastAccountId);
+        Assert.Equal(FakeSteamId, second.StateOf(GameProfiles.EldenRing).LastAccountId);
         Assert.Equal("Основной", second.Values.Aliases[FakeSteamId]);
         Assert.True(second.Values.AutoSnapshotEnabled);
         Assert.Equal(12, second.Values.AutoSnapshotMinutes);
@@ -77,7 +77,7 @@ public class PortableSettingsTests : IDisposable
         Assert.Equal(5, settings.Values.AutoSnapshotMinutes);
         Assert.Equal(10, settings.Values.AutoSnapshotKeep);
         Assert.False(settings.Values.AutoSnapshotEnabled);
-        Assert.Equal(Path.Combine(_folder, "Снимки"), settings.Values.SnapshotFolder);
+        Assert.Equal(Path.Combine(_folder, "Снимки"), settings.DefaultSnapshotFolder(GameProfiles.EldenRing));
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public class PortableSettingsTests : IDisposable
 
         var settings = PortableSettings.LoadFrom(_folder);
 
-        Assert.Equal(Path.Combine(_folder, folder), settings.Values.SnapshotFolder);
+        Assert.Equal(Path.Combine(_folder, folder), settings.DefaultSnapshotFolder(GameProfiles.EldenRing));
         Assert.Equal(language, settings.Language.ToString());
     }
 
@@ -144,7 +144,7 @@ public class PortableSettingsTests : IDisposable
         var reloaded = PortableSettings.LoadFrom(_folder);
 
         Assert.Equal(5, reloaded.Values.AutoSnapshotMinutes);
-        Assert.Null(reloaded.Values.LastAccountId);
+        Assert.Null(reloaded.StateOf(GameProfiles.EldenRing).LastAccountId);
     }
 
     [Fact]
@@ -162,7 +162,9 @@ public class PortableSettingsTests : IDisposable
 
         var settings = PortableSettings.LoadFrom(_folder);
 
-        Assert.Equal(OtherFakeSteamId, settings.Values.LastAccountId);
+        // Поле переехало к Elden Ring: до появления выбора игры оно лежало
+        // в корне настроек, и после обновления список не должен опустеть.
+        Assert.Equal(OtherFakeSteamId, settings.StateOf(GameProfiles.EldenRing).LastAccountId);
         Assert.Equal("второй", settings.Values.Aliases[OtherFakeSteamId]);
         Assert.Equal(5, settings.Values.AutoSnapshotMinutes);
         Assert.Equal(10, settings.Values.AutoSnapshotKeep);
@@ -173,11 +175,12 @@ public class PortableSettingsTests : IDisposable
     {
         var settings = PortableSettings.LoadFrom(_folder);
         settings.Save();
-        settings.Values.LastFileName = "ER0000.sl2";
+        settings.StateOf(GameProfiles.EldenRing).LastFileName = "ER0000.sl2";
         settings.Save();
 
         Assert.Empty(Directory.GetFiles(_folder, "*.tmp"));
-        Assert.Equal("ER0000.sl2", PortableSettings.LoadFrom(_folder).Values.LastFileName);
+        Assert.Equal("ER0000.sl2",
+            PortableSettings.LoadFrom(_folder).StateOf(GameProfiles.EldenRing).LastFileName);
     }
 
     [Fact]
@@ -204,9 +207,10 @@ public class PortableSettingsTests : IDisposable
 
         try
         {
-            settings.Values.LastFileName = "ER0000.sl2";
+            settings.StateOf(GameProfiles.EldenRing).LastFileName = "ER0000.sl2";
             settings.Save();
-            Assert.Equal("ER0000.sl2", PortableSettings.LoadFrom(unwritable).Values.LastFileName);
+            Assert.Equal("ER0000.sl2",
+                PortableSettings.LoadFrom(unwritable).StateOf(GameProfiles.EldenRing).LastFileName);
         }
         finally
         {
@@ -230,5 +234,68 @@ public class PortableSettingsTests : IDisposable
 
         settings.Save();
         Assert.Contains("файл есть", settings.DescribeFile());
+    }
+
+    /// <summary>
+    /// Папки у игр разные, и это главное, ради чего они разведены: список
+    /// снимков Dark Souls не должен показывать копии Elden Ring, а удаление
+    /// по кнопке - задевать их.
+    /// </summary>
+    [Fact]
+    public void Each_game_keeps_its_own_folder()
+    {
+        var settings = PortableSettings.LoadFrom(_folder);
+
+        var eldenRing = settings.DefaultSnapshotFolder(GameProfiles.EldenRing);
+        var darkSouls = settings.DefaultSnapshotFolder(
+            GameProfiles.BuiltIn.First(g => g.Id == "dark-souls-3"));
+
+        Assert.NotEqual(eldenRing, darkSouls);
+        Assert.StartsWith(eldenRing, darkSouls);
+    }
+
+    /// <summary>
+    /// Добавленная игра переживает перезапуск вместе со своей папкой: иначе
+    /// её пришлось бы добавлять заново при каждом запуске.
+    /// </summary>
+    [Fact]
+    public void An_added_game_survives_a_restart()
+    {
+        var first = PortableSettings.LoadFrom(_folder);
+        first.Values.CustomGames.Add(new CustomGame
+        {
+            Id = "custom-test",
+            Name = "Nioh 2",
+            Folder = _folder,
+            Extensions = ".sav",
+        });
+        first.StateOf(GameProfiles.FromCustom(first.Values.CustomGames[0])).LastFileName = "slot1.sav";
+        first.Save();
+
+        var second = PortableSettings.LoadFrom(_folder);
+        var game = second.AllGames().Single(g => !g.BuiltIn);
+
+        Assert.Equal("Nioh 2", game.Name);
+        Assert.Equal(_folder, game.ResolveRoot());
+        Assert.Equal([".sav"], game.Extensions);
+        Assert.Equal("slot1.sav", second.StateOf(game).LastFileName);
+    }
+
+    /// <summary>
+    /// Разрешения на выход в сеть по умолчанию нет - и это именно "не
+    /// спрашивали", а не "запрещено": окно обновлений различает эти случаи.
+    /// </summary>
+    [Fact]
+    public void Network_permission_starts_as_unasked()
+    {
+        var settings = PortableSettings.LoadFrom(_folder);
+
+        Assert.Null(settings.Values.UpdatesAllowed);
+        Assert.False(settings.Values.UpdatesCheckOnStart);
+
+        settings.Values.UpdatesAllowed = true;
+        settings.Save();
+
+        Assert.True(PortableSettings.LoadFrom(_folder).Values.UpdatesAllowed);
     }
 }

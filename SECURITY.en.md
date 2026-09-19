@@ -6,24 +6,50 @@
 
 Erdtree Keeper runs with ordinary user rights and touches exactly three things:
 
-1. It reads the save folder `%APPDATA%\EldenRing`.
+1. It reads the save folder of the selected game - `%APPDATA%\EldenRing` for Elden Ring,
+   `%APPDATA%\DarkSoulsIII` for Dark Souls III and so on; for a game added by hand, the
+   folder you picked.
 2. It writes copies into the folder you chose.
 3. It writes one settings file next to itself.
 
 Plus one action on an explicit command: "Restore to game" overwrites the save file, having
 first put the previous one into the `Before restore` subfolder.
 
-There is no networking code in the program, and that can be checked on the built file:
+### About the network
+
+Since version 1.5.0 the program has an update check, and that is the only thing it reaches
+out for. The rules are strict:
+
+- **not a single request goes out without permission.** Permission is asked once, in a
+  window of its own, explaining where and what for. Until you answer, the network is not
+  touched at all;
+- **there is one address and it is in the code**:
+  `https://api.github.com/repos/valiDol42/erdtree-keeper/releases/latest`. Links inside the
+  server's answer are checked against a list of GitHub hosts - an answer is data, not a
+  command, and a tampered one will not make the program download from anywhere else;
+- **nothing is sent**: no identifiers, nothing about the machine, nothing about your saves;
+- **every request is visible** in the activity log under the `NET` tag, with the full
+  address, and the log exports to a text file;
+- **what is downloaded is verified** against the checksum from the same release. No match,
+  and the file is deleted and the installation never starts. The archive is unpacked only
+  after the checksum matches, and paths inside it are checked so that no file can escape
+  the folder.
+
+Before 1.5.0 this section said there was no networking code at all, and that could be
+checked in the import table. That table now **does** contain `WS2_32.dll`, `CRYPT32.dll`,
+`ncrypt.dll` and `IPHLPAPI.DLL`:
 
 ```
 > dumpbin /dependents ErdtreeKeeper.exe
 
-ADVAPI32.dll        bcrypt.dll          KERNEL32.dll
-ole32.dll           OLEAUT32.dll        api-ms-win-crt-*.dll
+ADVAPI32.dll        bcrypt.dll          CRYPT32.dll         IPHLPAPI.DLL
+KERNEL32.dll        ncrypt.dll          ole32.dll           OLEAUT32.dll
+WS2_32.dll          api-ms-win-crt-*.dll
 ```
 
-Neither `ws2_32.dll` nor `winhttp.dll` nor `wininet.dll` appears in the imports - without
-them a program on Windows cannot open a network connection.
+What to check now is the behaviour rather than the list of libraries: run TCPView or the
+Windows resource monitor and see that the program opens no connection until you press
+"Check for updates".
 
 The program does not request administrator rights; that is fixed in the manifest
 (`requestedExecutionLevel level="asInvoker"`).
@@ -90,4 +116,7 @@ What is of interest first of all:
 
 - Any way to make the program write a file outside the snapshot folder and the game folder.
 - Any situation in which a player's save is lost without a backup.
-- Any network access.
+- Any network access without your permission, and any request to an address other than the
+  one named above.
+- Any way to hand the program an update file whose checksum does not match the published
+  one.

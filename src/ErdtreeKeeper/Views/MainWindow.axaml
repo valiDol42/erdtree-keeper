@@ -44,6 +44,13 @@
                             <ToggleButton Classes="lang" Content="EN" IsChecked="{Binding IsEnglish}" />
                         </StackPanel>
                     </Border>
+                    <!-- Полоска появляется только после проверки обновлений,
+                         а проверка - только с разрешения. -->
+                    <Button Classes="chip accent-chip" Content="{Binding UpdateNotice}"
+                            IsVisible="{Binding HasUpdateNotice}"
+                            Command="{Binding CheckUpdatesCommand}" Margin="0,0,6,0" />
+                    <Button Classes="ghost" Content="{Binding L[upd.button]}"
+                            Command="{Binding CheckUpdatesCommand}" />
                     <Button Classes="ghost" Content="{Binding L[app.whatItDoes]}" Click="OnShowTransparency" />
                     <Button Classes="ghost" Content="{Binding L[app.about]}" Click="OnShowAbout" />
                 </StackPanel>
@@ -97,6 +104,38 @@
                 <!-- ── Левая колонка ── -->
                 <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12">
+
+                        <!-- Какая игра. Всё остальное на экране зависит от
+                             этого выбора: папка поиска, список снимков, глубина
+                             проверки и то, можно ли собрать имя из места. -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding L[game.section]}" Classes="section" />
+
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding Games}"
+                                              SelectedItem="{Binding SelectedGame}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="core:GameProfile">
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1" Classes="chip" Content="{Binding L[game.add]}"
+                                            ToolTip.Tip="{Binding L[game.addTip]}"
+                                            Command="{Binding AddGameCommand}" />
+                                    <Button Grid.Column="2" Classes="chip" Content="{Binding L[game.remove]}"
+                                            ToolTip.Tip="{Binding L[game.removeTip]}"
+                                            IsVisible="{Binding CanRemoveGame}"
+                                            Command="{Binding RemoveGameCommand}" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding GameHint}" Classes="muted"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
 
                         <!-- Откуда -->
                         <Border Classes="card">
@@ -154,7 +193,11 @@
 
                                 <!-- Блок кликается целиком и открывает карточку
                                      игрока: всё, что удалось прочитать из сейва. -->
+                                <!-- Карточка персонажа есть только там, где программа
+                                     умеет читать сейв. Для остальных игр пустой блок
+                                     обещал бы то, чего не будет. -->
                                 <Button Classes="block" IsEnabled="{Binding HasContext}"
+                                        IsVisible="{Binding CanUseMapNames}"
                                         ToolTip.Tip="{Binding L[source.playerCardTip]}"
                                         Click="OnShowPlayerCard">
                                     <Grid ColumnDefinitions="*,Auto">
@@ -170,12 +213,16 @@
                                     </Grid>
                                 </Button>
 
-                                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <!-- Первая колонка схлопывается, когда кнопка чтения
+                                     скрыта, и проверка целостности занимает всю ширину. -->
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                     <Button Grid.Column="0" Content="{Binding L[source.read]}"
                                             HorizontalAlignment="Stretch"
+                                            IsVisible="{Binding CanUseMapNames}"
                                             Command="{Binding AnalyzeCommand}" />
                                     <Button Grid.Column="1" Content="{Binding L[source.checkIntegrity]}"
                                             HorizontalAlignment="Stretch"
+                                            ToolTip.Tip="{Binding IntegrityNote}"
                                             Command="{Binding CheckIntegrityCommand}" />
                                 </Grid>
                             </StackPanel>
@@ -194,14 +241,19 @@
                                 <WrapPanel ItemSpacing="6" LineSpacing="6">
                                     <Button Classes="chip" Content="{Binding L[name.addLocation]}"
                                             ToolTip.Tip="{Binding L[name.addLocationTip]}"
+                                            IsVisible="{Binding CanUseMapNames}"
                                             Command="{Binding AddLocationCommand}" />
                                     <Button Classes="chip" Content="{Binding L[name.addBoss]}"
                                             ToolTip.Tip="{Binding L[name.addBossTip]}"
+                                            IsVisible="{Binding CanUseMapNames}"
                                             Command="{Binding AddBossCommand}" />
                                     <Button Classes="chip" Content="{Binding L[name.addBefore]}"
                                             Command="{Binding AddBeforeCommand}" />
                                     <Button Classes="chip" Content="{Binding L[name.addAfter]}"
                                             Command="{Binding AddAfterCommand}" />
+                                    <Button Classes="chip" Content="{Binding L[name.addTime]}"
+                                            ToolTip.Tip="{Binding L[name.addTimeTip]}"
+                                            Command="{Binding AddTimeCommand}" />
                                     <Button Classes="chip" Content="{Binding L[name.clear]}"
                                             Command="{Binding ClearNameCommand}" />
                                 </WrapPanel>

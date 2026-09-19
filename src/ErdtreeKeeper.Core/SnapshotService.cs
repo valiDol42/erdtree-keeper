@@ -50,9 +50,10 @@ public sealed class SnapshotService(ActivityLog log)
 
     private readonly ActivityLog _log = log;
 
-    /// <summary>Перечисляет снимки в папке.</summary>
-    public List<Snapshot> List(string folder)
+    /// <summary>Перечисляет снимки в папке. Что считать снимком, решает игра.</summary>
+    public List<Snapshot> List(string folder, GameProfile? game = null)
     {
+        var profile = game ?? GameProfiles.EldenRing;
         var snapshots = new List<Snapshot>();
         if (!Directory.Exists(folder)) return snapshots;
 
@@ -61,7 +62,7 @@ public sealed class SnapshotService(ActivityLog log)
             foreach (var path in Directory.EnumerateFiles(folder))
             {
                 var name = System.IO.Path.GetFileName(path);
-                if (!GameSaves.LooksLikeSave(name)) continue;
+                if (!profile.LooksLikeSave(name)) continue;
 
                 var info = new FileInfo(path);
                 snapshots.Add(new Snapshot(name, path, info.Length, info.LastWriteTime));
@@ -85,8 +86,11 @@ public sealed class SnapshotService(ActivityLog log)
         string targetFolder,
         string fileName,
         bool overwrite,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        GameProfile? game = null)
     {
+        var profile = game ?? GameProfiles.EldenRing;
+
         if (!File.Exists(sourcePath))
             return new FileOperationResult(false, Loc.Get("op.sourceMissing"));
 
@@ -140,14 +144,17 @@ public sealed class SnapshotService(ActivityLog log)
 
             File.Move(temp, destination, overwrite: true);
 
-            var integrity = Sl2File.CheckIntegrity(bytes);
+            var check = SaveIntegrity.Inspect(profile, bytes);
             _log.Write(Loc.Get("log.snapshotCreated", bytes.Length / 1024 / 1024), destination);
 
-            var message = integrity.FileRecognised && !integrity.AllOk
-                ? Loc.Get("op.createdDamaged", integrity.BadCount)
-                : Loc.Get("op.created");
+            // О беде сообщаем только там, где её действительно видно. Для
+            // игры, формат которой программа не разбирает, "повреждён" было бы
+            // догадкой: копия точна, а что внутри - неизвестно.
+            var message = check.Ok
+                ? Loc.Get("op.created")
+                : Loc.Get("op.createdDamagedWhy", check.Problem ?? "");
 
-            return new FileOperationResult(true, message, destination, sourceHash, integrity);
+            return new FileOperationResult(true, message, destination, sourceHash, check.EldenRing);
         }
         catch (OperationCanceledException)
         {
@@ -175,26 +182,31 @@ public sealed class SnapshotService(ActivityLog log)
     public async Task<FileOperationResult> RestoreAsync(
         string snapshotPath,
         string gameSavePath,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        GameProfile? game = null)
     {
+        var profile = game ?? GameProfiles.EldenRing;
+
         if (!File.Exists(snapshotPath))
             return new FileOperationResult(false, Loc.Get("op.snapshotMissing"));
 
         try
         {
             var bytes = await Sl2File.ReadAllBytesSharedAsync(snapshotPath, ct).ConfigureAwait(false);
-            var integrity = Sl2File.CheckIntegrity(bytes);
+            var check = SaveIntegrity.Inspect(profile, bytes);
 
-            // Любая неисправность - отказ. Раньше проверка срабатывала только
-            // для распознанных файлов, и пустой или обрезанный снимок проходил
-            // насквозь, затирая игровой сейв.
-            if (!integrity.AllOk)
+            // Любая замеченная неисправность - отказ. Глубина проверки зависит
+            // от игры, но пустой или обрезанный файл не проходит нигде: раньше
+            // такой снимок затирал собой игровой сейв.
+            if (!check.Ok)
             {
-                _log.Error(Loc.Get("log.badSnapshot", integrity.Problem ?? ""), snapshotPath);
+                _log.Error(Loc.Get("log.badSnapshot", check.Problem ?? ""), snapshotPath);
                 return new FileOperationResult(false,
-                    Loc.Get("op.badSnapshot", integrity.Problem ?? ""),
-                    snapshotPath, null, integrity);
+                    Loc.Get("op.badSnapshot", check.Problem ?? ""),
+                    snapshotPath, null, check.EldenRing);
             }
+
+            var integrity = check.EldenRing;
 
             var sourceHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
 
@@ -279,12 +291,12 @@ public sealed class SnapshotService(ActivityLog log)
     /// похоже на сейв: если папку автосохранений навести на папку снимков или
     /// на папку игры, ротация сносила ручные копии и живой ER0000.sl2.
     /// </summary>
-    public int Rotate(string autoFolder, int keep)
+    public int Rotate(string autoFolder, int keep, GameProfile? game = null)
     {
         if (keep < 1) return 0;
 
-        var ours = List(autoFolder)
-            .Where(s => SnapshotNaming.IsAutoName(s.Name))
+        var ours = List(autoFolder, game)
+            .Where(s => SnapshotNaming.IsAutoName(s.Name, game))
             .ToList();
         if (ours.Count <= keep) return 0;
 

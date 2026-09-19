@@ -14,6 +14,169 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.0
+
+The program stopped being a save keeper for one game. Dark Souls, Sekiro and Armored Core VI
+joined it, any other Steam game can be added by hand, and an update check appeared - which
+changed one of the promises, covered separately below.
+
+### Added
+
+- **The Dark Souls series and the rest of FromSoftware.** The list at the top of the window
+  now holds Elden Ring, Nightreign, Dark Souls: Prepare to Die Edition, Dark Souls
+  Remastered, Dark Souls II, Dark Souls III, Sekiro and Armored Core VI. The program knows
+  where each of them keeps its saves and tells their files from everything else.
+
+  Each game keeps its own snapshot folder and its own choice of account and file. That is
+  not decoration: a shared list would mean Dark Souls snapshots mixed in with Elden Ring
+  copies, and a bulk delete or an autosave rotation reaching across into someone else's
+  files.
+
+- **Any Steam game, through the "+ game" button.** The window lists installed games that
+  have a cloud save folder, read from Steam's own files on disk (`libraryfolders.vdf` and
+  `appmanifest_*.acf`) - no outward request is needed for that. When the saves live
+  elsewhere the folder can be picked by hand, together with the file extensions and,
+  optionally, the game's process name, which lets the program warn you that the game is
+  running.
+
+  Everything after that is the same as with Elden Ring: a copy verified by SHA-256, a
+  refusal if the game was still writing during the copy, and a mandatory backup before a
+  snapshot goes back into the game.
+
+- **Update check.** The "Updates" button in the title bar asks GitHub about a new version,
+  shows the release notes, downloads the archive, verifies it against the published checksum
+  and replaces the program files. Settings and snapshots are left alone: only what was in
+  the archive is replaced.
+
+  The installation is carried out by the downloaded program itself, started from a temporary
+  folder with a special switch: it waits for the previous copy to close, moves the files and
+  starts the updated one. The usual way is a .bat file; that was avoided on purpose - the
+  copying is done by the very file whose checksum was just verified against the published
+  one, not by a script that appeared out of nowhere.
+
+- **A "+ time" button for snapshot names.** For games whose saves the program does not
+  parse, a location cannot be inserted, and the date and time are the only thing that
+  meaningfully tells one snapshot from another.
+
+### Changed
+
+- **The promise about the network changed, and that is the main thing in this release.**
+  The program used to be unable to go online at all: the built file imported no networking
+  library, and one command proved it. The import table now contains `WS2_32.dll`,
+  `CRYPT32.dll`, `ncrypt.dll` and `IPHLPAPI.DLL`.
+
+  In exchange, what replaced it can be checked by behaviour rather than by a list of
+  libraries:
+
+  - not a single request goes out without permission, and permission is asked once, in a
+    window of its own, explaining where and what for;
+  - there is one address and it is written into the code; links inside the answer are
+    checked against a list of GitHub hosts, so a tampered answer will not make the program
+    download from a foreign server;
+  - nothing is sent: no identifiers, nothing about the machine, nothing about the saves;
+  - every request is visible in the activity log under its own `NET` tag, with the full
+    address;
+  - what is downloaded is verified against the checksum from the same release, or the file
+    is deleted.
+
+  README and SECURITY say this plainly, new import table included: you would find it
+  yourself, and reading about it in advance beats concluding that you were lied to.
+
+- **The depth of the integrity check is now stated honestly.** For Elden Ring all 11
+  checksums are still recomputed. For the other FromSoftware games the BND4 container
+  structure is checked: a truncated or foreign file shows up, damaged data inside does not,
+  because it is encrypted and only the game holds the key. For a game added by hand, all
+  that is known is that the copy is exact. The program says so in the window and in the
+  report instead of answering "the file is intact" everywhere.
+
+- **Settings moved.** The snapshot folder and the last account and file are now stored per
+  game. Previous values are carried over into the Elden Ring entry on first launch, so the
+  list of snapshots stays the same after the update.
+
+### Verified
+
+- 155 automated checks, the new ones covering game profiles, parsing Steam's files, the BND4
+  container structure, version comparison and parsing GitHub's answer, tampered and broken
+  answers included.
+- The screenshot harness gained three behaviour checks: switching games really does change
+  the folder and the list; without permission, starting the program produces no network
+  request at all; installing an update replaces the program files and leaves settings and
+  snapshots untouched.
+- The whole update path was walked against the live GitHub: the request, the checksums, the
+  archive download, the checksum comparison against the published one, the unpacking.
+
+---
+
+## 1.4.1
+
+A pass over speed and reliability. Speed raised no questions: every operation fits into tens
+of milliseconds and nothing leaks. The fixes are about what happens when something goes
+wrong.
+
+### Fixed
+
+- **An unexpected error closed the program silently.** There was no global exception
+  handling at all, and synchronous commands and click handlers caught nothing: a failure on
+  the UI thread closed the window without a word. For a program already suspected of being
+  malware, "I clicked and everything vanished" is the worst possible outcome. A failure is
+  now written to `erdtree-keeper-crash.log` next to the program (attach it to a bug report),
+  a system message box explains what happened and where the log is, and after an error on
+  the UI thread the program stays open.
+- **Background tasks lost their errors.** Re-reading the save after the game writes it and
+  taking an autosnapshot both run without being awaited, and any exception other than a file
+  one disappeared without a trace. Everything now reaches the activity log, exception type
+  included.
+- **A save could be read twice at once.** The timer tick and the "+ location" button could
+  land in the same second; the second read added nothing but another 29 MB off the disk. A
+  latch now prevents it.
+
+### Verified
+
+- Measurements on a real save (27 MB): reading 8-23 ms, parsing 0-13 ms, integrity check
+  33 ms, taking a snapshot about 90 ms, restoring with a backup 117 ms, listing 500
+  snapshots 15 ms, rotating 500 files down to 10 41 ms. After ten reads in a row memory
+  returns to 28 MB, so nothing leaks.
+- The built exe: the window appears in 0.8 s, working set about 110 MB.
+- The harness deliberately crashes the UI thread and checks that the process survives and
+  the crash log is written.
+
+---
+
+## 1.4.0
+
+The location in a snapshot name stopped lagging behind the game.
+
+### Fixed
+
+- **"+ location" and "+ boss" inserted the place the character stood when the program
+  started.** The save was read once, and getting the current place meant pressing "Read
+  save" by hand every time - with nothing to hint at it: the button worked, it just inserted
+  a stale name. The program now watches the file and re-reads it once the game has finished
+  writing; the button additionally checks freshness at the moment it is pressed, in case
+  less time passed between the write and the click than is needed to call the write
+  finished.
+- **Watching for writes only worked with autosave enabled.** The same mechanism now runs
+  always: the location in a name matters to people taking snapshots by hand too.
+
+### Changed
+
+- The character sheet and the "where now" line update on their own as well - it is the same
+  read.
+- A new status appeared: "Save re-read - the location is current". A background read does
+  not take over the busy indicator and does not get in the way.
+
+### Verified
+
+- The screenshot harness walks both paths on real saves with different locations: swap the
+  file and press the button, swap the file and wait without pressing anything. The second
+  path completes in 6.5 seconds.
+- The first version of that check caught a bug in the logic itself: freshness compared as
+  "the file is newer than what we read", while restoring a snapshot puts a file with an
+  OLDER write time into the game - and the swap went unnoticed. The comparison now uses a
+  fingerprint (time plus length) and tests for inequality.
+
+---
+
 ## 1.3.1
 
 Switching the language in an open window only worked halfway.

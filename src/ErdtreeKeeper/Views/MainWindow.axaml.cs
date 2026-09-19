@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -53,6 +54,10 @@ public partial class MainWindow : Window
             Dialogs.ReportAsync(this, title, text);
 
         vm.PickFolderAsync = PickFolderAsync;
+
+        vm.AskForGameAsync = () => AddGameDialog.ShowAsync(this, PickFolderAsync);
+
+        vm.ShowUpdatesAsync = () => UpdateDialog.ShowAsync(this, vm, ShutdownForUpdate);
 
         vm.SaveFileAsync = async (title, suggested) =>
         {
@@ -148,6 +153,23 @@ public partial class MainWindow : Window
     {
         if (ViewModel?.SaveContext is not { } context) return;
         await Dialogs.CreatePlayerCardWindow(context).ShowDialog(this);
+    }
+
+    /// <summary>
+    /// Закрывает программу, чтобы установщик мог заменить её файлы.
+    ///
+    /// Именно закрывает всё приложение, а не окно обновлений: установщик ждёт
+    /// исчезновения процесса, и оставшееся главное окно держало бы файлы.
+    /// </summary>
+    private void ShutdownForUpdate()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+            return;
+        }
+
+        Close();
     }
 
     private void OnOpenSite(object? sender, RoutedEventArgs e) =>

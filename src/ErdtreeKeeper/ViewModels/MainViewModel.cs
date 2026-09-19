@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Threading;
 using ErdtreeKeeper.Core;
+using ErdtreeKeeper.Updates;
 
 namespace ErdtreeKeeper.ViewModels;
 
@@ -57,6 +58,7 @@ public sealed class MainViewModel : ViewModelBase
 
         Log = new ActivityLog();
         _snapshotService = new SnapshotService(Log);
+        Updates = new UpdateService(Log);
 
         // Команды создаются до присваивания свойств: их сеттеры дёргают
         // RaiseCanExecuteChanged, и в обратном порядке это падало бы.
@@ -79,16 +81,22 @@ public sealed class MainViewModel : ViewModelBase
         ExportLogCommand = new AsyncRelayCommand(ExportLogAsync);
         DismissOnboardingCommand = new RelayCommand(DismissOnboarding);
 
-        AddLocationCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: false));
-        AddBossCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: true));
+        AddLocationCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: false), () => CanUseMapNames);
+        AddBossCommand = new AsyncRelayCommand(() => AppendFromContextAsync(useBoss: true), () => CanUseMapNames);
         AddBeforeCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.WithPairSuffix(SnapshotName, SnapshotNaming.BeforeSuffix));
         AddAfterCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.WithPairSuffix(SnapshotName, SnapshotNaming.AfterSuffix));
+        AddTimeCommand = new RelayCommand(() => SnapshotName = SnapshotNaming.AppendTime(SnapshotName, DateTime.Now));
         ClearNameCommand = new RelayCommand(() => SnapshotName = "");
 
-        SnapshotFolder = _settings.Values.SnapshotFolder ?? Path.Combine(PortableSettings.AppFolder, Loc.Get("path.snapshots"));
-        AutoFolder = _settings.Values.AutoSnapshotFolder
-                     ?? Path.Combine(SnapshotFolder, SnapshotService.AutoFolder);
-        SnapshotName = _settings.Values.LastSnapshotName ?? "";
+        AddGameCommand = new AsyncRelayCommand(AddGameAsync);
+        RemoveGameCommand = new AsyncRelayCommand(RemoveGameAsync, () => SelectedGame is { BuiltIn: false });
+        CheckUpdatesCommand = new AsyncRelayCommand(OpenUpdatesAsync);
+
+        foreach (var game in _settings.AllGames()) Games.Add(game);
+        _game = GameProfiles.ById(Games, _settings.Values.SelectedGameId);
+        _selectedGame = _game;
+
+        LoadGameState();
         AutoSnapshotEnabled = _settings.Values.AutoSnapshotEnabled;
         ShowOnboarding = !_settings.Values.OnboardingDone;
 
@@ -180,6 +188,118 @@ public sealed class MainViewModel : ViewModelBase
 
     public ActivityLog Log { get; }
 
+    // ─── Игра ───────────────────────────────────────────────────────────
+
+    private GameProfile _game;
+    private GameProfile? _selectedGame;
+
+    /// <summary>Игры, между которыми можно переключаться: встроенные и свои.</summary>
+    public ObservableCollection<GameProfile> Games { get; } = [];
+
+    /// <summary>С сохранениями какой игры сейчас работает окно.</summary>
+    public GameProfile Game => _game;
+
+    public GameProfile? SelectedGame
+    {
+        get => _selectedGame;
+        set
+        {
+            if (!Set(ref _selectedGame, value) || value is null) return;
+            SwitchTo(value);
+        }
+    }
+
+    /// <summary>
+    /// Переключение на другую игру.
+    ///
+    /// Всё, что относилось к прежней, сбрасывается: прочитанный сейв, слежение
+    /// за записью, список снимков. Иначе в имени снимка Dark Souls оказалось бы
+    /// место из Elden Ring, а список предлагал бы восстановить чужой файл.
+    /// </summary>
+    private void SwitchTo(GameProfile game)
+    {
+        if (_game.Id == game.Id) return;
+
+        _game = game;
+        _settings.Values.SelectedGameId = game.Id;
+        _settings.Save();
+
+        SaveContext = null;
+        ResetWriteTracking();
+        LoadGameState();
+
+        Log.Info(Loc.Get("log.gameSwitched", game.Name), game.ResolveRoot());
+
+        RefreshAccounts();
+        RefreshSnapshots();
+        UpdateFreshness();
+        NotifyGameChanged();
+    }
+
+    /// <summary>Папки и имя снимка, запомненные для этой игры.</summary>
+    private void LoadGameState()
+    {
+        var state = _settings.StateOf(_game);
+
+        // Прямо в поля, минуя свойства: сеттер папки снимков тянет за собой
+        // папку автосохранений, и при переключении игры он перенёс бы туда
+        // путь от предыдущей.
+        _snapshotFolder = state.SnapshotFolder ?? _settings.DefaultSnapshotFolder(_game);
+        _autoFolder = state.AutoSnapshotFolder ?? Path.Combine(_snapshotFolder, SnapshotService.AutoFolder);
+        _snapshotName = state.LastSnapshotName ?? "";
+
+        OnPropertyChanged(nameof(SnapshotFolder));
+        OnPropertyChanged(nameof(AutoFolder));
+        OnPropertyChanged(nameof(SnapshotName));
+        OnPropertyChanged(nameof(ListFolder));
+        OnPropertyChanged(nameof(SnapshotPreview));
+    }
+
+    private void NotifyGameChanged()
+    {
+        OnPropertyChanged(nameof(Game));
+        OnPropertyChanged(nameof(CanUseMapNames));
+        OnPropertyChanged(nameof(CanRemoveGame));
+        OnPropertyChanged(nameof(GameHint));
+        OnPropertyChanged(nameof(IntegrityNote));
+        OnPropertyChanged(nameof(CharacterLine));
+        OnPropertyChanged(nameof(PlaceLine));
+        OnPropertyChanged(nameof(HasContext));
+        OnPropertyChanged(nameof(SnapshotPreview));
+        OnPropertyChanged(nameof(SteamCloudWarning));
+
+        AddLocationCommand.RaiseCanExecuteChanged();
+        AddBossCommand.RaiseCanExecuteChanged();
+        RemoveGameCommand.RaiseCanExecuteChanged();
+        UpdateCreateAvailability();
+    }
+
+    /// <summary>Имя снимка можно собрать из места только там, где программа знает карту.</summary>
+    public bool CanUseMapNames => _game.HasMapKnowledge;
+
+    /// <summary>
+    /// Убрать можно только добавленную игру. Для встроенной кнопка не
+    /// показывается вовсе: выключенная кнопка вызывает вопрос "почему", а
+    /// отсутствующая - нет.
+    /// </summary>
+    public bool CanRemoveGame => SelectedGame is { BuiltIn: false };
+
+    /// <summary>Короткая подсказка о том, чего ждать от этой игры.</summary>
+    public string GameHint => _game.HasMapKnowledge
+        ? Loc.Get("game.hintFull")
+        : Loc.Get("game.hintBasic", _game.Name);
+
+    /// <summary>
+    /// Что именно проверяет кнопка целостности - у разных игр по-разному, и
+    /// обещать одинаково нельзя.
+    /// </summary>
+    public string IntegrityNote => _game.Layout switch
+    {
+        SaveLayout.EldenRing => Loc.Get("game.checkFull"),
+        SaveLayout.Bnd4 => Loc.Get("game.checkContainer"),
+        _ => Loc.Get("game.checkCopyOnly"),
+    };
+
     public ObservableCollection<AccountItem> Accounts { get; } = [];
     public ObservableCollection<SaveFile> SaveFiles { get; } = [];
     public ObservableCollection<SnapshotRow> Snapshots { get; } = [];
@@ -191,7 +311,7 @@ public sealed class MainViewModel : ViewModelBase
         set
         {
             if (!Set(ref _selectedAccount, value)) return;
-            _settings.Values.LastAccountId = value?.Account.SteamId;
+            _settings.StateOf(_game).LastAccountId = value?.Account.SteamId;
             _settings.Save();
             RefreshSaveFiles();
             OnPropertyChanged(nameof(SteamCloudWarning));
@@ -207,7 +327,7 @@ public sealed class MainViewModel : ViewModelBase
         set
         {
             if (!Set(ref _selectedSaveFile, value)) return;
-            _settings.Values.LastFileName = value?.Name;
+            _settings.StateOf(_game).LastFileName = value?.Name;
             _settings.Save();
 
             // Подсказка относится к конкретному файлу: при смене её надо гасить,
@@ -282,7 +402,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             var previous = _snapshotFolder;
             if (!Set(ref _snapshotFolder, value)) return;
-            _settings.Values.SnapshotFolder = value;
+            _settings.StateOf(_game).SnapshotFolder = value;
             _settings.Save();
 
             // Если папка автосохранений так и осталась подпапкой прежней - она
@@ -310,7 +430,7 @@ public sealed class MainViewModel : ViewModelBase
         set
         {
             if (!Set(ref _autoFolder, value)) return;
-            _settings.Values.AutoSnapshotFolder = value;
+            _settings.StateOf(_game).AutoSnapshotFolder = value;
             _settings.Save();
             OnPropertyChanged(nameof(ListFolder));
             if (IsAutoFolder) RefreshSnapshots();
@@ -453,7 +573,7 @@ public sealed class MainViewModel : ViewModelBase
         set
         {
             if (!Set(ref _snapshotName, value)) return;
-            _settings.Values.LastSnapshotName = value;
+            _settings.StateOf(_game).LastSnapshotName = value;
             _settings.Save();
             OnPropertyChanged(nameof(SnapshotPreview));
             UpdateCreateAvailability();
@@ -546,7 +666,7 @@ public sealed class MainViewModel : ViewModelBase
     public bool HasContext => SaveContext is not null;
 
     public string CharacterLine => SaveContext is null
-        ? Loc.Get("source.readHint")
+        ? (_game.HasMapKnowledge ? Loc.Get("source.readHint") : Loc.Get("source.noReader", _game.Name))
         : $"{SaveContext.Character.Name}  ·  {Loc.Get("card.levelShort", SaveContext.Character.Level)}  ·  {SaveContext.Character.ClassName}";
 
     public string PlaceLine => SaveContext?.Summary ?? "";
@@ -593,8 +713,13 @@ public sealed class MainViewModel : ViewModelBase
         ? Loc.Get("warn.steamCloud")
         : null;
 
-    private string Extension =>
-        SelectedSaveFile?.IsSeamlessCoop == true ? ".co2" : ".sl2";
+    /// <summary>
+    /// Расширение снимка повторяет расширение исходного файла: у Seamless
+    /// Co-op это .co2, у Dark Souls - свои, а у добавленной игры - какое есть.
+    /// </summary>
+    private string Extension => SelectedSaveFile is { } file
+        ? _game.ExtensionOf(file.Name)
+        : _game.DefaultExtension;
 
     private bool CanCreateSnapshot =>
         !IsBusy && SelectedSaveFile is not null && SnapshotNaming.ToFileName(SnapshotName, Extension).Length > 0;
@@ -623,7 +748,11 @@ public sealed class MainViewModel : ViewModelBase
     public AsyncRelayCommand AddBossCommand { get; }
     public RelayCommand AddBeforeCommand { get; }
     public RelayCommand AddAfterCommand { get; }
+    public RelayCommand AddTimeCommand { get; }
     public RelayCommand ClearNameCommand { get; }
+    public AsyncRelayCommand AddGameCommand { get; }
+    public AsyncRelayCommand RemoveGameCommand { get; }
+    public AsyncRelayCommand CheckUpdatesCommand { get; }
 
     // ─── Диалоги задаёт окно ────────────────────────────────────────────
 
@@ -633,6 +762,12 @@ public sealed class MainViewModel : ViewModelBase
     public Func<string, string, Task<string?>>? SaveFileAsync { get; set; }
     public Func<string, string, Task>? ShowReportAsync { get; set; }
 
+    /// <summary>Окно добавления игры. Возвращает описание игры или ничего.</summary>
+    public Func<Task<CustomGame?>>? AskForGameAsync { get; set; }
+
+    /// <summary>Окно обновлений - единственное место, откуда программа выходит в сеть.</summary>
+    public Func<Task>? ShowUpdatesAsync { get; set; }
+
     // ─── Действия ───────────────────────────────────────────────────────
 
     public async Task LoadAsync()
@@ -640,7 +775,9 @@ public sealed class MainViewModel : ViewModelBase
         RefreshAccounts();
         RefreshSnapshots();
 
-        if (SelectedSaveFile is not null) await AnalyzeAsync();
+        if (SelectedSaveFile is not null && _game.HasMapKnowledge) await AnalyzeAsync();
+
+        await CheckUpdatesOnStartAsync();
     }
 
     private async Task RefreshEverythingAsync()
@@ -652,18 +789,26 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Где искать сохранения. В работе это всегда папка игры; отдельное
-    /// свойство нужно инструменту снимков экрана, чтобы показывать вымышленный
-    /// аккаунт вместо настоящего.
+    /// Где искать сохранения. В работе это всегда папка выбранной игры;
+    /// подменить её может только инструмент снимков экрана - чтобы показывать
+    /// вымышленный аккаунт вместо настоящего.
     /// </summary>
-    public string SavesRoot { get; set; } = GameSaves.DefaultRoot;
+    public string? SavesRootOverride { get; set; }
+
+    public string SavesRoot
+    {
+        get => SavesRootOverride ?? _game.ResolveRoot();
+        set => SavesRootOverride = value;
+    }
 
     public void RefreshAccounts()
     {
-        var wanted = SelectedAccount?.Account.SteamId ?? _settings.Values.LastAccountId;
+        var wanted = SelectedAccount?.Account.SteamId ?? _settings.StateOf(_game).LastAccountId;
+
+        var root = SavesRoot;
 
         Accounts.Clear();
-        foreach (var account in GameSaves.FindAccounts(SavesRoot))
+        foreach (var account in GameSaves.FindAccounts(_game, root))
         {
             _settings.Values.Aliases.TryGetValue(account.SteamId, out var alias);
             Accounts.Add(new AccountItem(account, alias));
@@ -671,30 +816,36 @@ public sealed class MainViewModel : ViewModelBase
 
         if (Accounts.Count == 0)
         {
-            SayKey("status.noSaveFolder", "DangerBrush", GameSaves.DefaultRoot);
-            Log.Warn(Loc.Get("log.noSaves"), GameSaves.DefaultRoot);
+            // Пустая папка - обычное дело: игра установлена не у всех. Это не
+            // ошибка программы, поэтому в сообщении стоит имя игры и путь, по
+            // которому она искала.
+            SelectedAccount = null;
+            SaveFiles.Clear();
+            SelectedSaveFile = null;
+            SayKey("status.noSaveFolderFor", "WarnBrush", _game.Name, root);
+            Log.Warn(Loc.Get("log.noSavesFor", _game.Name), root);
             return;
         }
 
         SelectedAccount = Accounts.FirstOrDefault(a => a.Account.SteamId == wanted) ?? Accounts[0];
-        Log.Read(Loc.Get("log.accountsFound", Accounts.Count), GameSaves.DefaultRoot);
+        Log.Read(Loc.Get("log.accountsFound", Accounts.Count), root);
     }
 
     private void RefreshSaveFiles()
     {
-        var wanted = SelectedSaveFile?.Name ?? _settings.Values.LastFileName;
+        var wanted = SelectedSaveFile?.Name ?? _settings.StateOf(_game).LastFileName;
 
         SaveFiles.Clear();
         if (SelectedAccount is null) return;
 
-        foreach (var file in GameSaves.FindSaveFiles(SelectedAccount.Account.Path))
+        foreach (var file in GameSaves.FindSaveFiles(_game, SelectedAccount.Account.Path))
         {
             SaveFiles.Add(file);
         }
 
         SelectedSaveFile =
             SaveFiles.FirstOrDefault(f => f.Name == wanted)
-            ?? SaveFiles.FirstOrDefault(f => f.Name == "ER0000.sl2")
+            ?? SaveFiles.FirstOrDefault(f => f.Name.Equals(_game.PrimaryFile, StringComparison.OrdinalIgnoreCase))
             ?? SaveFiles.FirstOrDefault();
     }
 
@@ -707,7 +858,7 @@ public sealed class MainViewModel : ViewModelBase
         foreach (var row in Snapshots) row.PropertyChanged -= OnRowPropertyChanged;
         Snapshots.Clear();
 
-        foreach (var snapshot in ApplySort(_snapshotService.List(ListFolder)))
+        foreach (var snapshot in ApplySort(_snapshotService.List(ListFolder, _game)))
         {
             var row = new SnapshotRow(snapshot) { IsSelected = wanted.Contains(snapshot.Name) };
             row.PropertyChanged += OnRowPropertyChanged;
@@ -766,6 +917,16 @@ public sealed class MainViewModel : ViewModelBase
     private async Task ReadContextAsync(bool announce)
     {
         if (SelectedSaveFile is null || _readingContext) return;
+
+        // Разбирать содержимое умеем только у Elden Ring. Для остальных игр
+        // карточка персонажа остаётся пустой, и это честнее, чем показывать
+        // выдуманные подробности.
+        if (!_game.HasMapKnowledge)
+        {
+            if (announce) SayKey("status.noReader", "WarnBrush", _game.Name);
+            return;
+        }
+
         _readingContext = true;
 
         DateTime writtenAt;
@@ -846,16 +1007,19 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             var path = SelectedSaveFile.Path;
-            var report = await Task.Run(async () =>
+            var game = _game;
+            var check = await Task.Run(async () =>
             {
                 var bytes = await Sl2File.ReadAllBytesSharedAsync(path);
-                return Sl2File.CheckIntegrity(bytes);
+                return SaveIntegrity.Inspect(game, bytes);
             });
 
-            var text = BuildIntegrityReport(report, SelectedSaveFile.Name);
-            Log.Read(report.AllOk ? Loc.Get("log.integrityOk") : Loc.Get("status.damagedBlocks", report.BadCount), path);
-            if (report.AllOk) SayKey("status.integrityOk", "FreshBrush");
-            else SayKey("status.damagedBlocks", "DangerBrush", report.BadCount);
+            var text = SaveIntegrity.BuildReport(game, check, SelectedSaveFile.Name);
+            Log.Read(check.Ok ? Loc.Get("log.integrityOk") : Loc.Get("log.integrityBad", check.Problem ?? ""), path);
+
+            if (!check.Ok) Say(check.Problem ?? Loc.Get("status.damaged"), "DangerBrush");
+            else if (game.Layout == SaveLayout.EldenRing) SayKey("status.integrityOk", "FreshBrush");
+            else SayKey("status.integrityBasic", "FreshBrush");
 
             if (ShowReportAsync is not null) await ShowReportAsync(Loc.Get("dlg.integrityTitle"), text);
         }
@@ -867,44 +1031,6 @@ public sealed class MainViewModel : ViewModelBase
         {
             IsBusy = false;
         }
-    }
-
-    private static string BuildIntegrityReport(Sl2File.IntegrityReport report, string fileName)
-    {
-        var lines = new List<string> { Loc.Get("report.file", fileName), "" };
-
-        if (!report.FileRecognised)
-        {
-            lines.Add(Loc.Get("report.notEldenRing"));
-            return string.Join(Environment.NewLine, lines);
-        }
-
-        lines.Add(report.SizeAsExpected
-            ? Loc.Get("report.sizeNormal", report.ActualSize.ToString("N0"))
-            : Loc.Get("report.sizeOdd", report.ActualSize.ToString("N0"), Sl2File.VanillaSize.ToString("N0")));
-        lines.Add("");
-        lines.Add(Loc.Get("report.howItWorks1"));
-        lines.Add(Loc.Get("report.howItWorks2"));
-        lines.Add("");
-
-        foreach (var block in report.Blocks)
-        {
-            lines.Add(block.Ok
-                ? $"  {block.Title,-10}  " + Loc.Get("report.blockOk")
-                : $"  {block.Title,-10}  " + Loc.Get("report.blockBad", block.Stored[..8], block.Actual[..8]));
-        }
-
-        lines.Add("");
-        lines.Add(report.AllOk
-            ? Loc.Get("report.verdictOk")
-            : Loc.Get("report.verdictBad", report.BadCount));
-
-        if (!report.AllOk)
-        {
-            lines.Add(Loc.Get("report.verdictBad2"));
-        }
-
-        return string.Join(Environment.NewLine, lines);
     }
 
     private async Task CreateSnapshotAsync()
@@ -932,7 +1058,7 @@ public sealed class MainViewModel : ViewModelBase
         try
         {
             var result = await _snapshotService.CreateAsync(
-                SelectedSaveFile.Path, SnapshotFolder, fileName, overwrite);
+                SelectedSaveFile.Path, SnapshotFolder, fileName, overwrite, game: _game);
 
             Say(result.Message, result.Success ? "FreshBrush" : "DangerBrush");
             if (result.Success) RefreshSnapshots();
@@ -947,10 +1073,12 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedSnapshot is null || SelectedAccount is null || ConfirmAsync is null) return;
 
-        var targetName = SelectedSaveFile?.Name ?? "ER0000.sl2";
+        var targetName = SelectedSaveFile?.Name ?? _game.PrimaryFile;
+        if (targetName is null) { SayKey("status.noTargetFile", "WarnBrush"); return; }
+
         var target = Path.Combine(SelectedAccount.Account.Path, targetName);
 
-        var warning = GameSaves.IsGameRunning()
+        var warning = GameSaves.IsGameRunning(_game)
             ? "\n\n" + Loc.Get("warn.gameRunning")
             : "";
 
@@ -969,7 +1097,8 @@ public sealed class MainViewModel : ViewModelBase
         SayKey("status.restoring", "TextSecondaryBrush");
         try
         {
-            var result = await _snapshotService.RestoreAsync(SelectedSnapshot.Path, target);
+            var result = await _snapshotService.RestoreAsync(
+                SelectedSnapshot.Path, target, game: _game);
             Say(result.Message, result.Success ? "FreshBrush" : "DangerBrush");
             if (result.Success)
             {
@@ -1066,6 +1195,159 @@ public sealed class MainViewModel : ViewModelBase
         RefreshAccounts();
     }
 
+    /// <summary>
+    /// Добавляет игру, которой нет во встроенном списке.
+    ///
+    /// Всё, что для этого нужно, - папка с сохранениями. Работа с ними дальше
+    /// идёт ровно та же, что и у Elden Ring: копия, проверка совпадения,
+    /// обязательная резервная копия перед возвратом в игру.
+    /// </summary>
+    private async Task AddGameAsync()
+    {
+        if (AskForGameAsync is null) return;
+
+        var added = await AskForGameAsync();
+        if (added is null) return;
+
+        if (string.IsNullOrWhiteSpace(added.Id)) added.Id = GameProfiles.NewCustomId();
+
+        _settings.Values.CustomGames.Add(added);
+        _settings.Save();
+
+        var profile = GameProfiles.FromCustom(added);
+        Games.Add(profile);
+        Log.Info(Loc.Get("log.gameAdded", profile.Name), profile.ResolveRoot());
+
+        SelectedGame = profile;
+    }
+
+    /// <summary>
+    /// Убирает игру из списка. Снимки при этом остаются на диске: удалять
+    /// чужие файлы за компанию программа не станет.
+    /// </summary>
+    private async Task RemoveGameAsync()
+    {
+        if (SelectedGame is not { BuiltIn: false } game || ConfirmAsync is null) return;
+
+        var confirmed = await ConfirmAsync(
+            Loc.Get("game.removeTitle"),
+            Loc.Get("game.removeBody", game.Name, _settings.StateOf(game).SnapshotFolder
+                                                   ?? _settings.DefaultSnapshotFolder(game)),
+            Loc.Get("game.remove"));
+        if (!confirmed) { SayKey("status.cancelled", "TextSecondaryBrush"); return; }
+
+        _settings.Values.CustomGames.RemoveAll(g => g.Id == game.Id);
+        _settings.Values.Games.Remove(game.Id);
+        _settings.Save();
+
+        Games.Remove(game);
+        Log.Info(Loc.Get("log.gameRemoved", game.Name));
+
+        SelectedGame = Games.FirstOrDefault(g => g.Id == GameProfiles.EldenRingId) ?? Games.FirstOrDefault();
+    }
+
+    // ─── Обновления ─────────────────────────────────────────────────────
+
+    /// <summary>Работа с сетью. Ничего не делает, пока её об этом не попросят.</summary>
+    public UpdateService Updates { get; }
+
+    /// <summary>
+    /// Разрешение обращаться к GitHub. Пусто означает, что не спрашивали - и
+    /// до ответа ни один запрос не уходит.
+    /// </summary>
+    public bool? UpdatesAllowed
+    {
+        get => _settings.Values.UpdatesAllowed;
+        set
+        {
+            if (_settings.Values.UpdatesAllowed == value) return;
+            _settings.Values.UpdatesAllowed = value;
+            _settings.Save();
+            Log.Info(value == true ? Loc.Get("log.updAllowed") : Loc.Get("log.updDenied"));
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Проверять при запуске. Отдельно от разрешения: одно дело - можно, другое - каждый раз.</summary>
+    public bool UpdatesCheckOnStart
+    {
+        get => _settings.Values.UpdatesCheckOnStart;
+        set
+        {
+            if (_settings.Values.UpdatesCheckOnStart == value) return;
+            _settings.Values.UpdatesCheckOnStart = value;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Версия, о которой попросили не напоминать.</summary>
+    public string? SkippedVersion
+    {
+        get => _settings.Values.SkippedVersion;
+        set
+        {
+            _settings.Values.SkippedVersion = value;
+            _settings.Save();
+        }
+    }
+
+    /// <summary>Отметка о том, что проверка состоялась - её видно в окне обновлений.</summary>
+    public void RememberUpdateCheck()
+    {
+        _settings.Values.LastUpdateCheck = DateTime.UtcNow.ToString("o");
+        _settings.Save();
+        OnPropertyChanged(nameof(LastUpdateCheckText));
+    }
+
+    public string LastUpdateCheckText =>
+        DateTimeOffset.TryParse(_settings.Values.LastUpdateCheck, out var when)
+            ? Loc.Get("upd.lastCheck", when.ToLocalTime().ToString("dd.MM.yyyy HH:mm"))
+            : Loc.Get("upd.neverChecked");
+
+    private string? _updateNotice;
+
+    /// <summary>Полоска в шапке: вышла новая версия. Появляется только после проверки.</summary>
+    public string? UpdateNotice
+    {
+        get => _updateNotice;
+        private set
+        {
+            if (!Set(ref _updateNotice, value)) return;
+            OnPropertyChanged(nameof(HasUpdateNotice));
+        }
+    }
+
+    public bool HasUpdateNotice => !string.IsNullOrEmpty(_updateNotice);
+
+    public void NoticeVersion(string? version) =>
+        UpdateNotice = version is null ? null : Loc.Get("upd.notice", version);
+
+    private async Task OpenUpdatesAsync()
+    {
+        if (ShowUpdatesAsync is null) return;
+        await ShowUpdatesAsync();
+    }
+
+    /// <summary>
+    /// Тихая проверка при запуске - только если её разрешили и попросили.
+    ///
+    /// Молчит обо всём, кроме появления новой версии: сообщение "у вас и так
+    /// последняя" при каждом запуске никому не нужно.
+    /// </summary>
+    private async Task CheckUpdatesOnStartAsync()
+    {
+        if (_settings.Values.UpdatesAllowed != true || !_settings.Values.UpdatesCheckOnStart) return;
+
+        var status = await Updates.CheckAsync();
+        RememberUpdateCheck();
+
+        if (status.State != UpdateState.Available || status.Release is null) return;
+        if (_settings.Values.SkippedVersion == status.Release.Version) return;
+
+        NoticeVersion(status.Release.Version);
+    }
+
     private async Task PickSnapshotFolderAsync()
     {
         if (PickFolderAsync is null) return;
@@ -1101,7 +1383,7 @@ public sealed class MainViewModel : ViewModelBase
     /// </summary>
     private bool Reject(string folder)
     {
-        if (!GameSaves.IsInsideGameFolder(folder)) return false;
+        if (!GameSaves.IsInsideGameFolder(_game, folder, SavesRootOverride)) return false;
 
         Log.Warn(Loc.Get("log.gameFolderRejected"), folder);
         SayKey("status.gameFolderRejected", "DangerBrush");
@@ -1275,18 +1557,27 @@ public sealed class MainViewModel : ViewModelBase
 
         try
         {
-            var context = await Task.Run(async () =>
-            {
-                var bytes = await Sl2File.ReadAllBytesSharedAsync(path);
-                return SaveContextReader.Read(bytes);
-            });
+            // Место в имени берётся из сейва, но читать его умеет только
+            // разборщик Elden Ring. Для остальных игр имя складывается из
+            // названия игры и времени - большего программа о них не знает.
+            var context = _game.HasMapKnowledge
+                ? await Task.Run(async () =>
+                {
+                    var bytes = await Sl2File.ReadAllBytesSharedAsync(path);
+                    return SaveContextReader.Read(bytes);
+                })
+                : null;
 
-            var name = SnapshotNaming.AutoName(context, DateTime.Now, Extension);
-            var result = await _snapshotService.CreateAsync(path, folder, name, overwrite: false);
+            var name = _game.HasMapKnowledge
+                ? SnapshotNaming.AutoName(context, DateTime.Now, Extension)
+                : SnapshotNaming.AutoName(null, DateTime.Now, Extension);
+
+            var result = await _snapshotService.CreateAsync(
+                path, folder, name, overwrite: false, game: _game);
 
             if (result.Success)
             {
-                var removed = _snapshotService.Rotate(folder, AutoKeep);
+                var removed = _snapshotService.Rotate(folder, AutoKeep, _game);
                 if (removed > 0) SayKey("status.autoSnapRotated", "FreshBrush", name, removed);
                 else SayKey("status.autoSnap", "FreshBrush", name);
                 RefreshSnapshots();

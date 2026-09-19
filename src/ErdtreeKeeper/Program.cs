@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using ErdtreeKeeper.Core;
+using ErdtreeKeeper.Updates;
 using Avalonia;
 
 namespace ErdtreeKeeper;
@@ -32,7 +32,16 @@ internal static class Program
         // берётся из системы, а выбор пользователя применяется поверх.
         Loc.Current.Language = Loc.DetectFromSystem();
 
+        // Установщик обновления - это та же программа, запущенная с ключом из
+        // временной папки. Окна у неё нет: она ждёт закрытия прежней копии,
+        // переносит файлы и запускает обновлённую.
+        if (UpdateInstaller.TryRunAsInstaller(args)) return;
+
         if (!CheckLibraries()) return;
+
+        // После удачного обновления временные папки остаются - убрать их может
+        // только уже запущенная новая копия, изнутри установщика это невозможно.
+        UpdateInstaller.CleanupLeftovers();
 
         // Раньше любого кода, который может упасть: сбой должен оставить след
         // и окно, а не закрыть программу молча.
@@ -61,20 +70,14 @@ internal static class Program
 
         if (missing.Length == 0) return true;
 
-        MessageBox(
+        Native.MessageBox(
             IntPtr.Zero,
             Loc.Get("startup.missingBody", string.Join(Environment.NewLine, missing), folder),
             Loc.Get("startup.missingTitle", AppInfo.Name),
-            MB_ICONERROR | MB_OK);
+            Native.IconError | Native.Ok);
 
         return false;
     }
-
-    private const uint MB_OK = 0x0;
-    private const uint MB_ICONERROR = 0x10;
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "MessageBoxW")]
-    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()

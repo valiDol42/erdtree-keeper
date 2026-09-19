@@ -95,15 +95,28 @@ public static partial class SnapshotNaming
     /// Похоже ли имя на автоснимок, сделанный этой программой.
     ///
     /// По этому признаку ротация решает, что можно удалять. Без него она
-    /// сносила любые .sl2 в папке - включая отобранные вручную копии и живой
-    /// сейв игры, если папку автосохранений навели на папку игры.
+    /// сносила любые сейвы в папке - включая отобранные вручную копии и живой
+    /// файл игры, если папку автосохранений навели на папку игры.
+    ///
+    /// Расширения берутся у игры: у Dark Souls они свои, а у игры, добавленной
+    /// вручную, их может не быть вовсе - тогда достаточно метки времени.
     /// </summary>
-    public static bool IsAutoName(string fileName)
+    public static bool IsAutoName(string fileName, GameProfile? game = null)
     {
-        foreach (var ext in GameSaves.SaveExtensions)
+        var profile = game ?? GameProfiles.EldenRing;
+
+        foreach (var ext in profile.Extensions)
         {
             if (!fileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) continue;
             return AutoNameStamp().IsMatch(fileName[..^ext.Length]);
+        }
+
+        // Игра без объявленных расширений: имя всё равно заканчивается меткой
+        // времени, и только по ней ротация здесь и отличает своё от чужого.
+        if (profile.Extensions.Count == 0)
+        {
+            var withoutExtension = Path.GetFileNameWithoutExtension(fileName);
+            return AutoNameStamp().IsMatch(withoutExtension);
         }
 
         return false;
@@ -119,9 +132,19 @@ public static partial class SnapshotNaming
         return $"{place}_{at:yyyy-MM-dd_HH-mm-ss}{extension}";
     }
 
-    private static string StripExtension(string value)
+    /// <summary>
+    /// Дописывает дату и время.
+    ///
+    /// Для Elden Ring имя собирается из места и босса, но об остальных играх
+    /// программа таких подробностей не знает. Там время - единственное, что
+    /// отличает один снимок от другого осмысленно, поэтому кнопка есть всегда.
+    /// </summary>
+    public static string AppendTime(string current, DateTime at) =>
+        Append(current, at.ToString("yyyy-MM-dd_HH-mm"));
+
+    private static string StripExtension(string value, GameProfile? game = null)
     {
-        foreach (var ext in GameSaves.SaveExtensions)
+        foreach (var ext in (game ?? GameProfiles.EldenRing).Extensions)
         {
             if (value.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
                 return value[..^ext.Length];

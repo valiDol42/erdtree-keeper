@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia.Threading;
 using ErdtreeKeeper.Core;
@@ -90,7 +89,7 @@ public static class CrashGuard
 
         try
         {
-            MessageBox(IntPtr.Zero, text, Loc.Get("crash.title"), MB_ICONERROR | MB_OK);
+            Native.MessageBox(IntPtr.Zero, text, Loc.Get("crash.title"), Native.IconError | Native.Ok);
         }
         catch
         {
@@ -128,10 +127,4 @@ public static class CrashGuard
 
         return null;
     }
-
-    private const uint MB_OK = 0x0;
-    private const uint MB_ICONERROR = 0x10;
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "MessageBoxW")]
-    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 }

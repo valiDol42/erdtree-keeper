@@ -285,10 +285,10 @@ public sealed class Loc : INotifyPropertyChanged
 
         // ─── Что программа делает ───────────────────────────────────────
         ["trans.title"] = ("Что программа делает", "What this program does"),
-        ["trans.noNetwork"] = ("Не выходит в интернет", "Does not go online"),
-        ["trans.noNetworkWhy"] = (
-            "В готовом файле нет ни одной сетевой библиотеки - открыть соединение программа технически не может.",
-            "The built binary imports no networking library - opening a connection is not something it can do."),
+        ["trans.network"] = ("В интернет выходит только по вашей команде", "Goes online only when you tell it to"),
+        ["trans.networkWhy"] = (
+            "Единственное обращение наружу - проверка обновлений на GitHub, и оно не случится, пока вы его не разрешите. Программа ничего о вас не отправляет: в запросе нет ни идентификаторов, ни сведений о компьютере. Каждое обращение записывается в журнал с полным адресом.",
+            "The only outward request is an update check on GitHub, and it does not happen until you allow it. The program sends nothing about you: the request carries no identifiers and no details about the machine. Every request is written to the activity log with its full address."),
         ["trans.reads"] = ("Читает", "Reads"),
         ["trans.readsWhat"] = (
             "Папку сохранений {0} и файлы .sl2 и .co2 внутри неё. Файлы открываются только на чтение и в режиме, который не мешает игре.",
@@ -299,12 +299,12 @@ public sealed class Loc : INotifyPropertyChanged
             "Snapshots into {0}\nSettings into {1}\n\nIt writes into the game folder exactly once - when you press \"Restore to game\". The current save always goes into the \"{2}\" subfolder first."),
         ["trans.notDoes"] = ("Не делает", "Does not"),
         ["trans.notDoesWhat"] = (
-            "Не обращается в интернет - ни за обновлениями, ни со статистикой. Ссылка на сайт проекта - единственное исключение, и работает она не сама: по щелчку программа просит систему открыть браузер, а соединение устанавливает уже он.\nНе меняет содержимое сохранений: копируется файл целиком, байт в байт.\nНе просит прав администратора.\nНе прописывается в автозагрузку и не остаётся в памяти после закрытия.\nНе изменяет файлы игры, реестр и системные настройки.",
-            "Does not reach the internet - no update checks, no telemetry. The project link is the only exception, and it does not act on its own: on a click the program asks the system to open a browser, which then makes the connection.\nDoes not alter save contents: the file is copied whole, byte for byte.\nDoes not ask for administrator rights.\nDoes not add itself to startup and does not stay in memory after closing.\nDoes not modify game files, the registry or system settings."),
+            "Не отправляет ваши данные никуда и никогда: ни статистики, ни сведений о сохранениях, ни имени компьютера.\nНе обращается в сеть без разрешения - проверка обновлений спрашивает его отдельно и запоминает ваш ответ.\nНе меняет содержимое сохранений: копируется файл целиком, байт в байт.\nНе просит прав администратора.\nНе прописывается в автозагрузку и не остаётся в памяти после закрытия.\nНе изменяет файлы игры, реестр и системные настройки.",
+            "Never sends your data anywhere: no statistics, no details about your saves, not even the machine name.\nDoes not touch the network without permission - the update check asks for it separately and remembers your answer.\nDoes not alter save contents: the file is copied whole, byte for byte.\nDoes not ask for administrator rights.\nDoes not add itself to startup and does not stay in memory after closing.\nDoes not modify game files, the registry or system settings."),
         ["trans.howToCheck"] = ("Как проверить", "How to check"),
         ["trans.howToCheckWhat"] = (
-            "Журнал операций показывает каждое обращение к диску, и его можно выгрузить в текстовый файл.\nОтсутствие сети проверяется любым монитором соединений - в готовом файле нет ни одной сетевой библиотеки.\nИсходный код открыт: собранный файл можно сверить по контрольной сумме в окне \"О программе\".",
-            "The activity log shows every disk access and exports to a text file.\nThe absence of networking can be checked with any connection monitor - the binary imports no networking library.\nThe source is open: the built file can be checked against the hash shown in the \"About\" window."),
+            "Журнал операций показывает каждое обращение к диску и каждый запрос в сеть - с адресом, и его можно выгрузить в текстовый файл.\nЛюбой монитор соединений покажет: пока вы не нажали \"Проверить обновления\", программа не открывает ни одного соединения.\nСкачанное обновление сверяется с контрольной суммой, опубликованной вместе с выпуском: не сошлось - файл удаляется.\nИсходный код открыт: собранный файл можно сверить по контрольной сумме в окне \"О программе\".",
+            "The activity log shows every disk access and every network request, address included, and it exports to a text file.\nAny connection monitor will show that until you press \"Check for updates\" the program opens no connection at all.\nA downloaded update is checked against the checksum published with the release: no match, and the file is deleted.\nThe source is open: the built file can be checked against the hash shown in the \"About\" window."),
 
         // ─── О программе ────────────────────────────────────────────────
         ["about.version"] = (
@@ -755,6 +755,223 @@ public sealed class Loc : INotifyPropertyChanged
         ["log.section"] = ("ЖУРНАЛ ОПЕРАЦИЙ", "ACTIVITY LOG"),
         ["log.export"] = ("Выгрузить в файл", "Export to file"),
         ["log.hide"] = ("Скрыть журнал", "Hide the log"),
+
+        // ─── Игры ───────────────────────────────────────────────────────
+        ["game.section"] = ("ИГРА", "GAME"),
+        ["game.add"] = ("+ игра", "+ game"),
+        ["game.addTip"] = (
+            "Добавить любую игру Steam: нужна только папка с её сохранениями",
+            "Add any Steam game: all it needs is the folder with its saves"),
+        ["game.remove"] = ("Убрать", "Remove"),
+        ["game.removeTip"] = ("Убрать добавленную игру из списка", "Remove an added game from the list"),
+        ["game.removeTitle"] = ("Убрать игру из списка?", "Remove the game from the list?"),
+        ["game.removeBody"] = (
+            "{0} исчезнет из списка игр. Снимки останутся на диске - папка {1} не трогается.",
+            "{0} will disappear from the list of games. The snapshots stay on disk: the folder {1} is not touched."),
+        ["game.hintFull"] = (
+            "Программа читает сейв и подставляет место в имя снимка",
+            "The program reads the save and puts the location into the snapshot name"),
+        ["game.hintBasic"] = (
+            "Для {0} программа копирует и возвращает файлы, но читать их содержимое не умеет",
+            "For {0} the program copies and restores files, but cannot read what is inside them"),
+        ["game.checkFull"] = (
+            "Проверяются все 11 контрольных сумм - ровно те, что проверяет игра",
+            "All 11 checksums are verified - the same ones the game checks"),
+        ["game.checkContainer"] = (
+            "Проверяется структура контейнера: обрезанный или чужой файл виден, испорченные данные внутри - нет",
+            "The container structure is checked: a truncated or foreign file shows up, damaged data inside does not"),
+        ["game.checkCopyOnly"] = (
+            "Формат неизвестен, поэтому сверяется только точность копии по SHA-256",
+            "The format is unknown, so only the exactness of the copy is verified, by SHA-256"),
+
+        // ─── Добавление игры ────────────────────────────────────────────
+        ["addgame.title"] = ("Добавить игру", "Add a game"),
+        ["addgame.lead"] = (
+            "Программе нужна только папка с сохранениями. Дальше всё как обычно: копия, сверка по SHA-256 и обязательная резервная копия перед возвратом файла в игру.",
+            "All the program needs is the folder with the saves. Everything after that is as usual: a copy, a SHA-256 check and a mandatory backup before the file goes back to the game."),
+        ["addgame.steam"] = ("ИГРЫ STEAM НА ЭТОМ КОМПЬЮТЕРЕ", "STEAM GAMES ON THIS COMPUTER"),
+        ["addgame.steamHint"] = (
+            "Список читается из файлов самого Steam. Показаны игры, у которых есть папка облачных сохранений - её и подставит программа.",
+            "The list is read from Steam's own files. It shows games that have a cloud save folder, and that folder is what the program will use."),
+        ["addgame.noSteam"] = (
+            "Steam на этом компьютере не найден. Папку с сохранениями можно указать вручную.",
+            "Steam was not found on this computer. The save folder can be picked by hand."),
+        ["addgame.noCloudGames"] = (
+            "Ни у одной установленной игры не нашлось облачных сохранений. Папку можно указать вручную.",
+            "None of the installed games has cloud saves. The folder can be picked by hand."),
+        ["addgame.cloud"] = ("облако Steam", "Steam cloud"),
+        ["addgame.manual"] = ("ИЛИ УКАЖИТЕ ПАПКУ САМИ", "OR PICK THE FOLDER YOURSELF"),
+        ["addgame.name"] = ("Название", "Name"),
+        ["addgame.namePlaceholder"] = ("например: Nioh 2", "for example: Nioh 2"),
+        ["addgame.folder"] = ("Папка с сохранениями", "Save folder"),
+        ["addgame.extensions"] = ("Расширения файлов", "File extensions"),
+        ["addgame.extensionsHint"] = (
+            "Через запятую, например: .sav, .dat. Пусто - считать сохранением любой файл в папке.",
+            "Comma separated, for example: .sav, .dat. Leave empty to treat any file in the folder as a save."),
+        ["addgame.process"] = ("Имя процесса игры", "Game process name"),
+        ["addgame.processHint"] = (
+            "Необязательно. По нему программа предупредит, что игра запущена и восстанавливать сейв сейчас бесполезно.",
+            "Optional. It lets the program warn you that the game is running and restoring a save now would be pointless."),
+        ["addgame.filesFound"] = ("В папке найдено файлов: {0}", "Files found in the folder: {0}"),
+        ["addgame.filesNone"] = (
+            "В этой папке нет подходящих файлов - проверьте путь и расширения",
+            "This folder holds no matching file - check the path and the extensions"),
+        ["addgame.needFolder"] = ("Укажите папку с сохранениями", "Pick the folder with the saves"),
+        ["addgame.needName"] = ("Введите название игры", "Enter a name for the game"),
+        ["addgame.insideKnown"] = (
+            "Это папка игры, которая уже есть в списке",
+            "This is the folder of a game that is already in the list"),
+        ["addgame.add"] = ("Добавить", "Add"),
+
+        // ─── Обновления ─────────────────────────────────────────────────
+        ["upd.button"] = ("Обновления", "Updates"),
+        ["upd.title"] = ("Обновление программы", "Program update"),
+        ["upd.current"] = ("Установлена версия {0}", "Installed version: {0}"),
+        ["upd.askTitle"] = ("Разрешить проверку обновлений?", "Allow checking for updates?"),
+        ["upd.askBody"] = (
+            "Чтобы узнать о новой версии, программа обратится к GitHub - туда же, где лежит её исходный код. Это единственный адрес, по которому она ходит, и он записан прямо в коде.",
+            "To find out about a new version the program will contact GitHub - the same place its source code lives. That is the only address it ever contacts, and it is written into the code."),
+        ["upd.askPoints"] = (
+            "Отправляется только сам запрос: ни идентификаторов, ни сведений о вас и вашем компьютере в нём нет.\nАдрес запроса попадёт в журнал операций - его видно в окне и можно выгрузить в файл.\nСкачанный архив сверяется с контрольной суммой из того же выпуска. Не сошлась - файл удаляется, ничего не ставится.\nОтказ ничего не ломает: обновиться всегда можно вручную со страницы выпусков.",
+            "Only the request itself goes out: it carries no identifiers and nothing about you or your computer.\nThe address of the request goes into the activity log, visible in the window and exportable to a file.\nThe downloaded archive is checked against the checksum from the same release. No match, and the file is deleted and nothing is installed.\nSaying no breaks nothing: you can always update by hand from the releases page."),
+        ["upd.allow"] = ("Разрешить и проверить", "Allow and check"),
+        ["upd.checkOnStart"] = ("Проверять при запуске программы", "Check when the program starts"),
+        ["upd.allowed"] = (
+            "Проверка обновлений разрешена. Отозвать разрешение можно здесь же.",
+            "Update checks are allowed. You can withdraw that permission right here."),
+        ["upd.revoke"] = ("Запретить выход в сеть", "Forbid going online"),
+        ["upd.check"] = ("Проверить сейчас", "Check now"),
+        ["upd.checking"] = ("Спрашиваем GitHub...", "Asking GitHub..."),
+        ["upd.lastCheck"] = ("Последняя проверка: {0}", "Last checked: {0}"),
+        ["upd.neverChecked"] = ("Ещё ни разу не проверяли", "Never checked yet"),
+        ["upd.upToDate"] = ("У вас последняя версия: {0}", "You have the latest version: {0}"),
+        ["upd.available"] = ("Доступна версия {0}", "Version {0} is available"),
+        ["upd.notice"] = ("Вышла версия {0}", "Version {0} is out"),
+        ["upd.whatsNew"] = ("ЧТО ИЗМЕНИЛОСЬ", "WHAT CHANGED"),
+        ["upd.download"] = ("Скачать и установить", "Download and install"),
+        ["upd.downloading"] = ("Скачиваем: {0}%", "Downloading: {0}%"),
+        ["upd.openPage"] = ("Открыть страницу выпуска", "Open the release page"),
+        ["upd.skip"] = ("Пропустить эту версию", "Skip this version"),
+        ["upd.skipped"] = ("Об этой версии больше не напомним", "You will not be reminded about this version"),
+        ["upd.failed"] = ("Не удалось проверить: {0}", "Could not check: {0}"),
+        ["upd.timeout"] = ("GitHub не ответил вовремя", "GitHub did not answer in time"),
+        ["upd.unreadable"] = (
+            "GitHub ответил не тем, чего мы ждали. Попробуйте позже или зайдите на страницу выпусков.",
+            "GitHub answered with something unexpected. Try later or open the releases page."),
+        ["upd.noPackage"] = ("У выпуска нет архива со сборкой", "The release has no build archive"),
+        ["upd.noChecksums"] = (
+            "У выпуска нет файла контрольных сумм - без него обновление не ставится",
+            "The release has no checksum file - without it nothing gets installed"),
+        ["upd.badUrl"] = (
+            "Ссылка ведёт не на GitHub - скачивание отменено",
+            "The link does not lead to GitHub - the download is cancelled"),
+        ["upd.noSumForFile"] = (
+            "Для файла {0} нет опубликованной контрольной суммы",
+            "There is no published checksum for {0}"),
+        ["upd.sumMismatch"] = (
+            "Контрольная сумма не совпала. Файл удалён, ничего не установлено.",
+            "The checksum did not match. The file has been deleted and nothing was installed."),
+        ["upd.tooBig"] = (
+            "Ответ оказался больше, чем бывает архив сборки",
+            "The response is larger than a build archive ever is"),
+        ["upd.badEntry"] = ("В архиве недопустимый путь: {0}", "The archive holds a forbidden path: {0}"),
+        ["upd.noExe"] = ("В архиве нет файла {0}", "The archive has no {0}"),
+        ["upd.downloadFailed"] = ("Не удалось скачать: {0}", "Download failed: {0}"),
+        ["upd.ready"] = ("Версия {0} скачана и проверена", "Version {0} is downloaded and verified"),
+        ["upd.readyBody"] = (
+            "Контрольная сумма сошлась с опубликованной. Программа закроется, заменит свои файлы и откроется снова. Настройки и снимки не трогаются.",
+            "The checksum matched the published one. The program will close, replace its own files and open again. Settings and snapshots are left alone."),
+        ["upd.install"] = ("Установить и перезапустить", "Install and restart"),
+        ["upd.installing"] = ("Устанавливаем...", "Installing..."),
+        ["upd.cannotInstall"] = (
+            "В папку программы нельзя писать - похоже, она лежит в Program Files. Скачанное распаковано в {0}, замените файлы вручную.",
+            "The program folder is not writable - it looks like it sits in Program Files. The download is unpacked into {0}, replace the files by hand."),
+        ["upd.installFailedTitle"] = ("Обновление не установилось", "The update was not installed"),
+        ["upd.installFailedBody"] = (
+            "Файлы заменить не удалось: {0}\n\nПрежняя версия осталась на месте и работает. Новые файлы лежат здесь: {1}",
+            "The files could not be replaced: {0}\n\nThe previous version is untouched and still works. The new files are here: {1}"),
+        ["upd.openFolder"] = ("Открыть папку со скачанным", "Open the download folder"),
+
+        // ─── Проверка сохранений ────────────────────────────────────────
+        ["problem.empty"] = ("файл пустой", "the file is empty"),
+        ["problem.notBnd4"] = (
+            "это не сохранение игры: нет признака BND4 в начале файла",
+            "this is not a game save: the BND4 marker at the start is missing"),
+        ["problem.bnd4Truncated"] = (
+            "файл обрезан: записи не помещаются в его длину",
+            "the file is truncated: its entries do not fit into its length"),
+        ["report.game"] = ("Игра: {0}", "Game: {0}"),
+        ["report.size"] = ("Размер: {0} байт", "Size: {0} bytes"),
+        ["report.notBnd4"] = (
+            "Файл не похож на сохранение: в начале нет признака BND4.",
+            "The file does not look like a save: the BND4 marker at the start is missing."),
+        ["report.bnd4Version"] = ("Версия контейнера: {0}", "Container version: {0}"),
+        ["report.bnd4Entries"] = ("Записей внутри: {0}", "Entries inside: {0}"),
+        ["report.bnd4Explain"] = (
+            "Данные этой игры зашифрованы, и ключ есть только у самой игры - пересчитать\nконтрольные суммы, как в Elden Ring, нельзя. Проверено то, что проверить можно:\nфайл опознан как сохранение и не обрезан.",
+            "This game encrypts its data and only the game has the key, so its checksums cannot\nbe recomputed the way Elden Ring ones can. What could be checked was: the file is\nrecognised as a save and is not truncated."),
+        ["report.bnd4Ok"] = (
+            "Итог: файл на месте и не обрезан. Испорченные данные внутри этим не ловятся.",
+            "Verdict: the file is whole and not truncated. Damaged data inside is not caught by this."),
+        ["report.bnd4Truncated"] = (
+            "Итог: файл обрезан. Восстанавливать его в игру нельзя.",
+            "Verdict: the file is truncated. It must not be restored into the game."),
+        ["report.opaque"] = (
+            "Формат этой игры программе неизвестен, поэтому о содержимом она ничего\nне утверждает. Что проверено: файл не пуст, а каждая копия сверяется\nпо SHA-256 сразу после записи.",
+            "The format of this game is unknown to the program, so it claims nothing about the\ncontents. What was checked: the file is not empty, and every copy is verified by\nSHA-256 right after it is written."),
+        ["report.opaqueVerdict"] = (
+            "Итог: файл на месте. О его содержимом судить не беремся.",
+            "Verdict: the file is there. About its contents we make no claim."),
+        ["report.emptyVerdict"] = ("Итог: файл пустой.", "Verdict: the file is empty."),
+        ["op.createdDamagedWhy"] = (
+            "Снимок создан, но с файлом беда: {0}",
+            "Snapshot created, but there is trouble with the file: {0}"),
+
+        // ─── Новые строки состояния ─────────────────────────────────────
+        ["status.noSaveFolderFor"] = ("Сохранения {0} не найдены: {1}", "No {0} saves found: {1}"),
+        ["status.noReader"] = (
+            "Содержимое сейвов {0} программа не разбирает",
+            "The program does not parse the contents of {0} saves"),
+        ["status.noTargetFile"] = (
+            "Непонятно, в какой файл восстанавливать - выберите файл сохранения",
+            "It is unclear which file to restore into - pick a save file"),
+        ["status.integrityBasic"] = ("Проверено, насколько это возможно", "Checked as far as it is possible"),
+        ["status.damaged"] = ("Файл повреждён", "The file is damaged"),
+        ["source.noReader"] = (
+            "Для {0} программа работает с файлами, но не с их содержимым",
+            "For {0} the program works with files, not with what is inside them"),
+        ["name.addTime"] = ("+ время", "+ time"),
+        ["name.addTimeTip"] = (
+            "Подставить дату и время - так снимки не сливаются в одно имя",
+            "Insert the date and time so snapshots do not end up with the same name"),
+
+        // ─── Журнал: игры и сеть ────────────────────────────────────────
+        ["log.net"] = ("СЕТЬ", "NET"),
+        ["log.netCheck"] = ("Запрос о последнем выпуске", "Asking about the latest release"),
+        ["log.netAnswer"] = ("Ответ: выпуск {0}, {1}", "Answer: release {0}, {1}"),
+        ["log.netNewer"] = ("новее установленного", "newer than installed"),
+        ["log.netSame"] = ("не новее установленного", "not newer than installed"),
+        ["log.netSums"] = ("Запрос контрольных сумм выпуска", "Asking for the release checksums"),
+        ["log.netDownload"] = ("Скачивание архива, {0} МБ", "Downloading the archive, {0} MB"),
+        ["log.netFailed"] = ("Сеть недоступна: {0}", "Network unavailable: {0}"),
+        ["log.netUnreadable"] = ("Ответ не разобран", "The answer could not be parsed"),
+        ["log.updSumOk"] = ("Контрольная сумма сошлась: {0}...", "Checksum matched: {0}..."),
+        ["log.updSumMismatch"] = (
+            "Контрольная сумма НЕ сошлась - файл удалён",
+            "Checksum did NOT match - the file was deleted"),
+        ["log.updUnpacked"] = ("Обновление распаковано", "The update is unpacked"),
+        ["log.updFailed"] = ("Обновление не скачалось: {0}", "The update was not downloaded: {0}"),
+        ["log.updLaunch"] = ("Запуск установки обновления", "Starting the update installation"),
+        ["log.updLaunchFailed"] = (
+            "Установку запустить не удалось: {0}",
+            "The installation could not be started: {0}"),
+        ["log.updAllowed"] = ("Проверка обновлений разрешена", "Update checks allowed"),
+        ["log.updDenied"] = ("Проверка обновлений запрещена", "Update checks forbidden"),
+        ["log.gameSwitched"] = ("Выбрана игра: {0}", "Game selected: {0}"),
+        ["log.gameAdded"] = ("Добавлена игра: {0}", "Game added: {0}"),
+        ["log.gameRemoved"] = ("Игра убрана из списка: {0}", "Game removed from the list: {0}"),
+        ["log.noSavesFor"] = ("Сохранения {0} не найдены", "No {0} saves found"),
+        ["log.integrityBad"] = ("Проверка нашла беду: {0}", "The check found trouble: {0}"),
     };
 
     /// <summary>Все ключи - для проверки полноты перевода тестом.</summary>

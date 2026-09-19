@@ -16,7 +16,7 @@ namespace ErdtreeKeeper.Views;
 /// </summary>
 public static class Dialogs
 {
-    private static Window Shell(string title, double width, Control body)
+    internal static Window Shell(string title, double width, Control body)
     {
         var window = new Window
         {
@@ -39,7 +39,7 @@ public static class Dialogs
         return window;
     }
 
-    private static TextBlock Heading(string text) => new()
+    internal static TextBlock Heading(string text) => new()
     {
         Text = text,
         Classes = { "display" },
@@ -49,7 +49,7 @@ public static class Dialogs
 
     // Перенос ставится и здесь, хотя он есть в теме: у диалогов ширина
     // фиксированная, и строка без переноса просто уезжает за край окна.
-    private static SelectableTextBlock Body(string text) => new()
+    internal static SelectableTextBlock Body(string text) => new()
     {
         Text = text,
         Classes = { "body" },
@@ -58,7 +58,7 @@ public static class Dialogs
     };
 
     /// <summary>Ссылка наружу. Открывает браузер, ничего не качает сама.</summary>
-    private static Button Link(string label, string url)
+    internal static Button Link(string label, string url)
     {
         var button = new Button
         {
@@ -72,7 +72,7 @@ public static class Dialogs
         return button;
     }
 
-    private static Button Action(string text, bool primary = false, bool danger = false)
+    internal static Button Action(string text, bool primary = false, bool danger = false)
     {
         var button = new Button { Content = text, MinWidth = 110 };
         if (primary) button.Classes.Add("primary");
@@ -80,7 +80,7 @@ public static class Dialogs
         return button;
     }
 
-    private static StackPanel Buttons(params Control[] buttons)
+    internal static StackPanel Buttons(params Control[] buttons)
     {
         var panel = new StackPanel
         {
@@ -93,7 +93,7 @@ public static class Dialogs
         return panel;
     }
 
-    private static T? Res<T>(string key) where T : class
+    internal static T? Res<T>(string key) where T : class
     {
         var app = Application.Current;
         return app is not null && app.TryGetResource(key, app.ActualThemeVariant, out var value)
@@ -232,7 +232,7 @@ public static class Dialogs
 
                 // Главное обещание вынесено наверх и подсвечено: с него
                 // начинаются все вопросы недоверчивого игрока.
-                NoNetworkBadge(),
+                NetworkBadge(),
 
                 Section(Loc.Get("trans.reads"), Res<IBrush>("TextSecondaryBrush"),
                     Loc.Get("trans.readsWhat", Core.GameSaves.DefaultRoot)),
@@ -259,11 +259,17 @@ public static class Dialogs
     public static Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder) =>
         CreateTransparencyWindow(settingsPath, snapshotFolder).ShowDialog(owner);
 
-    /// <summary>Отметка о том, что программа не открывает соединений.</summary>
-    private static Control NoNetworkBadge() => new Border
+    /// <summary>
+    /// Отметка о том, как программа обращается с сетью.
+    ///
+    /// Раньше здесь стояло "не выходит в интернет" - с появлением проверки
+    /// обновлений это перестало быть правдой, и надпись изменилась вместе с
+    /// программой. Обещание, которое придётся однажды нарушить, хуже точного.
+    /// </summary>
+    private static Control NetworkBadge() => new Border
     {
-        Background = Res<IBrush>("FreshWashBrush"),
-        BorderBrush = Res<IBrush>("FreshBrush"),
+        Background = Res<IBrush>("SurfaceRaisedBrush"),
+        BorderBrush = Res<IBrush>("AccentDimBrush"),
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(8),
         Padding = new Thickness(14, 11),
@@ -277,7 +283,7 @@ public static class Dialogs
                 {
                     Width = 8,
                     Height = 8,
-                    Fill = Res<IBrush>("FreshBrush"),
+                    Fill = Res<IBrush>("AccentBrightBrush"),
                     // По верхней строке, а не по центру блока: иначе точка
                     // оказывается напротив пояснения, а не заголовка.
                     VerticalAlignment = VerticalAlignment.Top,
@@ -290,14 +296,14 @@ public static class Dialogs
                     {
                         new TextBlock
                         {
-                            Text = Loc.Get("trans.noNetwork"),
+                            Text = Loc.Get("trans.network"),
                             FontSize = 13,
                             FontWeight = Avalonia.Media.FontWeight.SemiBold,
-                            Foreground = Res<IBrush>("FreshBrush"),
+                            Foreground = Res<IBrush>("AccentBrightBrush"),
                         },
                         new TextBlock
                         {
-                            Text = Loc.Get("trans.noNetworkWhy"),
+                            Text = Loc.Get("trans.networkWhy"),
                             Classes = { "muted" },
                             TextWrapping = TextWrapping.Wrap,
                             MaxWidth = 540,
@@ -308,7 +314,7 @@ public static class Dialogs
         },
     };
 
-    private static Control Section(string title, IBrush? accent, string text) => new StackPanel
+    internal static Control Section(string title, IBrush? accent, string text) => new StackPanel
     {
         Spacing = 6,
         Children =
@@ -418,7 +424,7 @@ public static class Dialogs
     }
 
     /// <summary>Подпись, поле и единица измерения в одной строке.</summary>
-    private static Control Labelled(string label, Control control, string suffix)
+    internal static Control Labelled(string label, Control control, string suffix)
     {
         var text = new TextBlock
         {

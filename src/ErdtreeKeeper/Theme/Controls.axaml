@@ -108,6 +108,18 @@
     </Style>
 
     <!--
+        Чип-уведомление о новой версии. Он подсвечен, потому что появляется
+        редко и его надо заметить, но остаётся чипом: это не призыв к действию,
+        а сообщение, на которое можно нажать.
+    -->
+    <Style Selector="Button.accent-chip">
+        <Setter Property="Background" Value="{DynamicResource AccentDimBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrightBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!--
         Баннер трекера. Кликается целиком, поэтому это кнопка, а не рамка:
         так работают и клавиатура, и фокус, и подсветка при наведении.
         Внутри вложенных кнопок быть не должно - клик достался бы обеим.

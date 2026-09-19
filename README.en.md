@@ -2,13 +2,18 @@
 
 [Русский](README.md) · **English**
 
-A save file keeper for **Elden Ring** on Windows: it copies your saves, shows where your
-character is standing, and can put any copy back into the game.
+A save file keeper for Windows: it copies your saves, shows where your character is
+standing, and can put any copy back into the game.
+
+It knows **Elden Ring**, **Nightreign**, the whole **Dark Souls** series, **Sekiro** and
+**Armored Core VI**, and any other Steam game can be added by hand - all it needs is the
+folder with that game's saves.
 
 Part of [eldenring.krut.top](https://eldenring.krut.top) - an Elden Ring map and progress
 tracker.
 
-One portable exe. Settings sit next to it. The program does not go online.
+One portable exe. Settings sit next to it. It goes online only when you tell it to - for
+updates, and only if you allowed that.
 
 The interface comes in Russian and English - the `RU | EN` switch in the title bar changes
 it without a restart, and the choice is remembered. On first launch the language follows
@@ -35,23 +40,40 @@ VirusTotal shows the name `ErdtreeKeeper.dll` even though the file is an `.exe`.
 internal .NET assembly name stored inside the exe; it is the same file, and the matching
 checksum confirms it.
 
-**The program cannot go online.** Not "does not" - cannot: the built file imports no
-networking library at all. No updates, no telemetry, no uploads. This is visible in the
-import table of the exe, which holds only file, window and checksum-cryptography work:
+**The program goes online only for updates, and only with your permission.** Permission is
+asked once, in a window of its own, and until you answer, not a single request goes out.
+What that means in practice:
+
+- there is one address and it is written into the code -
+  `https://api.github.com/repos/valiDol42/erdtree-keeper/releases/latest`. Links inside the
+  answer are checked against a list of GitHub hosts: a tampered answer will not make the
+  program download a file from somewhere else;
+- nothing is sent. The request carries no identifiers and nothing about you, your machine
+  or your saves;
+- every request goes into the activity log under its own `NET` tag, with the full address.
+  The log is visible in the window and exports to a text file;
+- the downloaded archive is checked against the checksum published with the release. No
+  match, and the file is deleted and nothing is installed;
+- saying no breaks nothing: you can always update by hand from the releases page.
+
+Until version 1.5.0 this section made a stronger claim: the program could not go online at
+all, because the built file imported no networking library. Updates made that untrue, and
+**the import table of the exe now contains** `WS2_32.dll`, `CRYPT32.dll`, `ncrypt.dll` and
+`IPHLPAPI.DLL` - the libraries needed to open a secure connection:
 
 ```
 > dumpbin /dependents ErdtreeKeeper.exe
 
-ADVAPI32.dll        bcrypt.dll          KERNEL32.dll
-ole32.dll           OLEAUT32.dll        api-ms-win-crt-*.dll
+ADVAPI32.dll        bcrypt.dll          CRYPT32.dll         IPHLPAPI.DLL
+KERNEL32.dll        ncrypt.dll          ole32.dll           OLEAUT32.dll
+WS2_32.dll          api-ms-win-crt-*.dll
 ```
 
-Neither `ws2_32.dll` nor `winhttp.dll` nor `wininet.dll` - the libraries without which
-Windows cannot open a network connection - is there.
-
-The only link outwards is the project site [eldenring.krut.top](https://eldenring.krut.top).
-On a click the program asks the system to open a browser; the browser makes the connection,
-not the program.
+This is written here for the same reason as everything else in this section: you would find
+it yourself, and reading about it in advance beats concluding that you were lied to. What to
+check is no longer the list of libraries but the behaviour: **until you press "Check for
+updates" the program opens no connection at all**, and any connection monitor shows it -
+TCPView or the Windows resource monitor.
 
 **The program does not alter save contents.** It copies the file whole, byte for byte, and
 verifies the copy by SHA-256. It only looks inside the save - to show the character name and
@@ -70,7 +92,7 @@ Uninstalling means deleting the folder.
 | The file was not swapped after the build | In the "About" window press "Compute SHA-256" and compare it with the sum on the release page |
 | The build came from this code | Build it yourself and compare the sum. A public repository also carries an attestation: `gh attestation verify ErdtreeKeeper.exe --repo <owner>/erdtree-keeper` (GitHub issues none for user-owned private repositories) |
 | The file is not flagged as malicious | [VirusTotal report](https://www.virustotal.com/gui/file/9a532a7d6dbe01776179ce20ea0cd0d929a5952c9bb082a03d9f91c521d9bb4f) for 1.3.1: 0 of 69 engines. Easy to repeat - compute the SHA-256 of your copy and open the report for that sum |
-| The program does not go online | `dumpbin /dependents ErdtreeKeeper.exe` - no networking libraries in the list. Or any connection monitor: TCPView, Wireshark, the Windows resource monitor |
+| The program does not go online on its own | Any connection monitor - TCPView, Wireshark, the Windows resource monitor: until you allow update checks and press the button, there are no connections. Every request also shows in the activity log under the `NET` tag |
 | What the program does to your disk | The "Activity log" button in the window: every file access is there, and the log exports to a text file |
 | The code does what it says | Build it yourself: `dotnet publish` (see below), compare your build with the released one |
 
@@ -85,7 +107,11 @@ instructions are below.
 
 **Reads**
 
-- The `%APPDATA%\EldenRing` folder and the `.sl2` and `.co2` files inside it.
+- The save folder of the selected game and the save files inside it. For Elden Ring that is
+  `%APPDATA%\EldenRing` with its `.sl2` and `.co2` files, for Dark Souls III it is
+  `%APPDATA%\DarkSoulsIII`, and so on; for a game added by hand, the folder you picked.
+- Steam's own files on disk (`libraryfolders.vdf`, `appmanifest_*.acf`) - only while the
+  "Add a game" window is open, to list the installed games.
 - Files are opened read-only, in a sharing mode that does not disturb the game.
 
 **Writes**
@@ -98,7 +124,8 @@ instructions are below.
 
 **Does not**
 
-- Does not reach the internet.
+- Does not reach the internet without permission, and with permission only GitHub, for the
+  list of releases. It sends nothing about you while doing so.
 - Does not alter save contents.
 - Does not ask for administrator rights.
 - Does not add itself to startup.
@@ -107,6 +134,21 @@ instructions are below.
 ---
 
 ## Features
+
+**Several games.** The list at the top of the window holds Elden Ring, Nightreign, Dark Souls
+(Prepare to Die, Remastered, II, III), Sekiro and Armored Core VI. Each game keeps its own
+snapshot folder and its own choice of account and file, so copies of different games never
+share a list and a bulk delete cannot reach across.
+
+The "+ game" button adds any other Steam game. The window lists installed games that have a
+cloud save folder - read from Steam's own files on disk - or the folder can be picked by
+hand when the saves live elsewhere. Everything after that is the same: a copy, a SHA-256
+check and a mandatory backup before the file goes back to the game.
+
+**Update check.** The "Updates" button in the title bar asks GitHub about a new version,
+shows the release notes, downloads the archive, verifies it against the published checksum
+and replaces the program files - settings and snapshots are left alone. No network is used
+until you allow it; the details are in "Why you can run this".
 
 **Save freshness indicator.** The game does not write the save to disk immediately, so a
 copy taken at the wrong moment misses the last events. The program shows the age of the file
@@ -122,7 +164,14 @@ finished writing the save, and the button checks freshness at the moment it is p
 There is no need to press "Read save" before every snapshot - that button remains for when
 you simply want to look at the character card right now.
 
-**Integrity check.** It recomputes all 11 checksums inside a save and reports, block by
+**Integrity check.** How deeply a file is checked depends on the game, and the window says
+so plainly. For Elden Ring - completely, all 11 checksums. For the other FromSoftware games
+the BND4 container structure is checked: a truncated or foreign file shows up, damaged data
+inside does not, because it is encrypted and only the game holds the key. For a game added
+by hand, all that is known is that the copy is exact by SHA-256, and the program does not
+pretend to know more.
+
+For Elden Ring it recomputes all 11 checksums inside a save and reports, block by
 block, whether each one matched. Damage becomes visible in advance instead of at the moment
 the game says "Save data is corrupt".
 
@@ -169,8 +218,13 @@ Requirements: Windows 10 or newer, 64-bit. Nothing to install alongside - .NET i
 
 ### Updating
 
-Close the program and replace `ErdtreeKeeper.exe` and the `.dll` files with the new ones.
-Nothing else needs touching.
+The easy way is the "Updates" button in the title bar: the program downloads the new
+version, verifies it against the published checksum, replaces its own files and opens
+again. Settings and snapshots are left alone. Update checks have to be allowed first - you
+are asked once, in a window of its own.
+
+By hand it looks like this: close the program and replace `ErdtreeKeeper.exe` and the
+`.dll` files with the new ones. Nothing else needs touching.
 
 **Do not delete the whole folder before extracting.** Your settings
 (`erdtree-keeper.settings.json`) live next to the program, and by default so does the

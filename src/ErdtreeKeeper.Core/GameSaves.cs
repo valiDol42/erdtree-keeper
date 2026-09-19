@@ -18,62 +18,89 @@ public sealed record SaveFile(string Name, string Path, long Length, DateTime Mo
 }
 
 /// <summary>
-/// Поиск сохранений Elden Ring на диске.
+/// Поиск сохранений на диске.
 ///
-/// Игра держит их в %APPDATA%\EldenRing\&lt;SteamID&gt;\, по папке на аккаунт.
-/// Ничего, кроме перечисления файлов, здесь не происходит.
+/// Где искать и что считать сохранением, задаёт профиль игры: Elden Ring держит
+/// файлы в %APPDATA%\EldenRing\&lt;SteamID&gt;\, Dark Souls III - в
+/// %APPDATA%\DarkSoulsIII\&lt;SteamID&gt;\, добавленная вручную игра - там, где
+/// её папку указали. Ничего, кроме перечисления файлов, здесь не происходит.
 /// </summary>
 public static class GameSaves
 {
     /// <summary>Стандартная папка сохранений Elden Ring.</summary>
-    public static string DefaultRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "EldenRing");
+    public static string DefaultRoot => GameProfiles.EldenRing.ResolveRoot();
 
-    /// <summary>Расширения, которые считаем сохранениями.</summary>
+    /// <summary>Расширения сохранений Elden Ring.</summary>
     public static readonly string[] SaveExtensions = [".sl2", ".co2"];
 
     public static bool LooksLikeSave(string fileName) =>
-        SaveExtensions.Any(ext => fileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-        || fileName.EndsWith(".sl2.bak", StringComparison.OrdinalIgnoreCase)
-        || fileName.EndsWith(".co2.bak", StringComparison.OrdinalIgnoreCase);
+        GameProfiles.EldenRing.LooksLikeSave(fileName);
 
     /// <summary>
     /// Перечисляет аккаунты, у которых есть хотя бы один файл сохранения.
     /// Свежие - первыми: почти всегда нужен именно тот, в который играли.
+    ///
+    /// Обычно игра заводит по папке на аккаунт Steam, но так делают не все:
+    /// часть игр кладёт сейвы прямо в свою папку. Тогда "аккаунтом" становится
+    /// сама папка - иначе список оказался бы пустым при живых файлах внутри.
     /// </summary>
-    public static List<SaveAccount> FindAccounts(string? root = null)
+    public static List<SaveAccount> FindAccounts(GameProfile game, string? root = null)
     {
-        var dir = root ?? DefaultRoot;
+        var dir = root ?? game.ResolveRoot();
         var accounts = new List<SaveAccount>();
         if (!Directory.Exists(dir)) return accounts;
 
         foreach (var sub in SafeEnumerateDirectories(dir))
         {
-            var files = SafeEnumerateFiles(sub).Where(f => LooksLikeSave(Path.GetFileName(f))).ToList();
-            if (files.Count == 0) continue;
-
-            var main = Path.Combine(sub, "ER0000.sl2");
-            var modified = File.Exists(main)
-                ? File.GetLastWriteTime(main)
-                : files.Max(File.GetLastWriteTime);
-
-            accounts.Add(new SaveAccount(Path.GetFileName(sub), sub, modified));
+            var account = Describe(game, sub);
+            if (account is not null) accounts.Add(account);
         }
+
+        var atRoot = Describe(game, dir);
+        if (atRoot is not null) accounts.Add(atRoot);
 
         return accounts.OrderByDescending(a => a.Modified).ToList();
     }
 
+    /// <summary>Аккаунты Elden Ring - прежняя подпись, которой пользуются тесты и стенд.</summary>
+    public static List<SaveAccount> FindAccounts(string? root = null) =>
+        FindAccounts(GameProfiles.EldenRing, root);
+
+    /// <summary>Папка как аккаунт, если внутри есть сохранения. Иначе - ничего.</summary>
+    private static SaveAccount? Describe(GameProfile game, string folder)
+    {
+        var files = SafeEnumerateFiles(folder)
+            .Where(f => game.LooksLikeSave(System.IO.Path.GetFileName(f)))
+            .ToList();
+        if (files.Count == 0) return null;
+
+        DateTime modified;
+        try
+        {
+            var main = game.PrimaryFile is null ? null : System.IO.Path.Combine(folder, game.PrimaryFile);
+            modified = main is not null && File.Exists(main)
+                ? File.GetLastWriteTime(main)
+                : files.Max(File.GetLastWriteTime);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return new SaveAccount(System.IO.Path.GetFileName(folder.TrimEnd(
+            System.IO.Path.DirectorySeparatorChar)), folder, modified);
+    }
+
     /// <summary>Перечисляет файлы сохранений внутри папки аккаунта.</summary>
-    public static List<SaveFile> FindSaveFiles(string accountPath)
+    public static List<SaveFile> FindSaveFiles(GameProfile game, string accountPath)
     {
         var files = new List<SaveFile>();
         if (!Directory.Exists(accountPath)) return files;
 
         foreach (var path in SafeEnumerateFiles(accountPath))
         {
-            var name = Path.GetFileName(path);
-            if (!LooksLikeSave(name)) continue;
+            var name = System.IO.Path.GetFileName(path);
+            if (!game.LooksLikeSave(name)) continue;
 
             try
             {
@@ -84,28 +111,56 @@ public static class GameSaves
             catch (UnauthorizedAccessException) { }
         }
 
-        // Основной ER0000.sl2 наверх, резервные копии игры - вниз.
+        // Главный файл наверх, резервные копии игры - вниз.
         return files
             .OrderBy(f => f.IsGameBackup)
+            .ThenByDescending(f => game.PrimaryFile is not null
+                                   && f.Name.Equals(game.PrimaryFile, StringComparison.OrdinalIgnoreCase))
             .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    public static List<SaveFile> FindSaveFiles(string accountPath) =>
+        FindSaveFiles(GameProfiles.EldenRing, accountPath);
 
     /// <summary>
     /// Лежит ли путь внутри папки сохранений игры.
     ///
     /// Снимки и автосохранения туда складывать нельзя: ротация начнёт удалять
-    /// файлы игры, а снимок с именем ER0000 перезапишет живой сейв в обход
-    /// восстановления - то есть в обход обязательной резервной копии.
+    /// файлы игры, а снимок с именем игрового файла перезапишет живой сейв в
+    /// обход восстановления - то есть в обход обязательной резервной копии.
     /// </summary>
     public static bool IsInsideGameFolder(string? path, string? root = null)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
 
+        // Без явного корня проверяем все известные игры разом: папка снимков
+        // одна на игру, а запретить надо любую игровую.
+        if (root is null)
+        {
+            foreach (var game in GameProfiles.BuiltIn)
+            {
+                if (IsInside(path, game.ResolveRoot())) return true;
+            }
+
+            return false;
+        }
+
+        return IsInside(path, root);
+    }
+
+    /// <summary>То же для конкретной игры, включая добавленные вручную.</summary>
+    public static bool IsInsideGameFolder(GameProfile game, string? path, string? root = null) =>
+        IsInside(path, root ?? game.ResolveRoot()) || IsInsideGameFolder(path);
+
+    private static bool IsInside(string? path, string root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root)) return false;
+
         try
         {
             var full = System.IO.Path.GetFullPath(path);
-            var gameRoot = System.IO.Path.GetFullPath(root ?? DefaultRoot);
+            var gameRoot = System.IO.Path.GetFullPath(root);
 
             return full.Equals(gameRoot, StringComparison.OrdinalIgnoreCase)
                    || full.StartsWith(
@@ -118,11 +173,17 @@ public static class GameSaves
         catch (PathTooLongException) { return false; }
     }
 
-    /// <summary>Запущена ли игра. Восстанавливать сейв поверх работающей игры бесполезно.</summary>
-    public static bool IsGameRunning()
+    /// <summary>
+    /// Запущена ли игра. Восстанавливать сейв поверх работающей игры бесполезно:
+    /// она держит сохранение в памяти и перезапишет файл при выходе.
+    ///
+    /// Для игры, добавленной вручную, имя процесса может быть неизвестно -
+    /// тогда ответ отрицательный, и предупреждение просто не показывается.
+    /// Обещать больше, чем программа может проверить, здесь нельзя.
+    /// </summary>
+    public static bool IsGameRunning(GameProfile game)
     {
-        string[] names = ["eldenring", "start_protected_game", "nightreign"];
-        foreach (var name in names)
+        foreach (var name in game.ProcessNames)
         {
             try
             {
@@ -134,6 +195,8 @@ public static class GameSaves
 
         return false;
     }
+
+    public static bool IsGameRunning() => IsGameRunning(GameProfiles.EldenRing);
 
     private static IEnumerable<string> SafeEnumerateDirectories(string path)
     {
