@@ -36,6 +36,31 @@ public enum SaveRootKind
 }
 
 /// <summary>
+/// Одно из мест, где игра может держать сохранения.
+///
+/// Мест бывает несколько, и это не теория: Dark Souls Remastered кладёт сейв в
+/// "Документы", а не в %APPDATA%, куда его поместили бы по аналогии с
+/// остальными играми FromSoftware. Одного зашитого пути тут мало - программа
+/// проверяет все известные и берёт тот, который нашёлся на этой машине.
+/// </summary>
+public sealed record SaveRoot(SaveRootKind Kind, string Path)
+{
+    /// <summary>
+    /// Путь на этом компьютере. Вычисляется, а не хранится: "Документы" могут
+    /// быть перенесены на другой диск, и системная папка знает об этом, а
+    /// зашитый путь - нет.
+    /// </summary>
+    public string Resolve() => Kind switch
+    {
+        SaveRootKind.AppData => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Path),
+        SaveRootKind.Documents => System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path),
+        _ => Path,
+    };
+}
+
+/// <summary>
 /// Игра, сохранения которой программа умеет копировать.
 ///
 /// Всё, что раньше было зашито под Elden Ring - путь, расширения, имя процесса,
@@ -60,19 +85,43 @@ public sealed record GameProfile(
     public string DefaultExtension => Extensions.Count > 0 ? Extensions[0] : ".sav";
 
     /// <summary>
-    /// Корневая папка сохранений на этом компьютере.
-    ///
-    /// Путь вычисляется, а не хранится: в нём стоит имя пользователя Windows,
-    /// и путь, записанный на чужой машине, здесь бы не подошёл.
+    /// Другие места, где эта игра встречается. Проверяются после основного.
     /// </summary>
-    public string ResolveRoot() => RootKind switch
+    public IReadOnlyList<SaveRoot> AlternateRoots { get; init; } = [];
+
+    /// <summary>Все места, где стоит искать сохранения, в порядке проверки.</summary>
+    public IEnumerable<string> ResolveRoots()
     {
-        SaveRootKind.AppData => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), RootPath),
-        SaveRootKind.Documents => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), RootPath),
-        _ => RootPath,
-    };
+        yield return new SaveRoot(RootKind, RootPath).Resolve();
+
+        foreach (var alternate in AlternateRoots) yield return alternate.Resolve();
+    }
+
+    /// <summary>
+    /// Папка сохранений на этом компьютере: первая из известных, которая
+    /// действительно существует. Если не нашлось ни одной - основная, чтобы
+    /// человеку было что показать в сообщении.
+    /// </summary>
+    public string ResolveRoot()
+    {
+        string? first = null;
+
+        foreach (var candidate in ResolveRoots())
+        {
+            first ??= candidate;
+
+            try
+            {
+                if (Directory.Exists(candidate)) return candidate;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Недоступный диск - просто пробуем следующее место.
+            }
+        }
+
+        return first ?? RootPath;
+    }
 
     /// <summary>Похож ли файл на сохранение этой игры.</summary>
     public bool LooksLikeSave(string fileName)
@@ -134,31 +183,59 @@ public static class GameProfiles
             [".sl2", ".co2"], "NR0000.sl2",
             ["nightreign", "start_protected_game"], SaveLayout.Bnd4),
 
-        new("dark-souls-remastered", "Dark Souls Remastered", SaveRootKind.AppData,
+        // Проверено на машине с установленной игрой: сейв лежит в
+        // "Документах", хотя остальные игры FromSoftware держат его в
+        // %APPDATA%. Второй путь оставлен на случай другой сборки игры.
+        new("dark-souls-remastered", "Dark Souls Remastered", SaveRootKind.Documents,
             Path.Combine("NBGI", "DARK SOULS REMASTERED"),
             [".sl2", ".sdt"], "DRAKS0005.sl2",
-            ["DarkSoulsRemastered"], SaveLayout.Bnd4),
+            ["DarkSoulsRemastered"], SaveLayout.Bnd4)
+        {
+            AlternateRoots =
+            [
+                new SaveRoot(SaveRootKind.AppData, Path.Combine("NBGI", "DARK SOULS REMASTERED")),
+            ],
+        },
 
         new("dark-souls-ptde", "Dark Souls: Prepare to Die Edition", SaveRootKind.Documents,
             Path.Combine("NBGI", "DarkSouls"),
-            [".sdt"], "DRAKS0005.sdt",
-            ["DARKSOULS"], SaveLayout.Opaque),
+            [".sdt", ".sl2"], "DRAKS0005.sdt",
+            ["DARKSOULS"], SaveLayout.Opaque)
+        {
+            AlternateRoots =
+            [
+                new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "DARK SOULS")),
+                new SaveRoot(SaveRootKind.AppData, Path.Combine("NBGI", "DarkSouls")),
+            ],
+        },
 
         new("dark-souls-2", "Dark Souls II", SaveRootKind.AppData, "DarkSoulsII",
             [".sl2"], "DARKSII0000.sl2",
-            ["DarkSoulsII"], SaveLayout.Bnd4),
+            ["DarkSoulsII"], SaveLayout.Bnd4)
+        {
+            AlternateRoots = [new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "DarkSoulsII"))],
+        },
 
         new("dark-souls-3", "Dark Souls III", SaveRootKind.AppData, "DarkSoulsIII",
             [".sl2"], "DS30000.sl2",
-            ["DarkSoulsIII"], SaveLayout.Bnd4),
+            ["DarkSoulsIII"], SaveLayout.Bnd4)
+        {
+            AlternateRoots = [new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "DarkSoulsIII"))],
+        },
 
         new("sekiro", "Sekiro: Shadows Die Twice", SaveRootKind.AppData, "Sekiro",
             [".sl2"], "S0000.sl2",
-            ["sekiro"], SaveLayout.Bnd4),
+            ["sekiro"], SaveLayout.Bnd4)
+        {
+            AlternateRoots = [new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "Sekiro"))],
+        },
 
         new("armored-core-6", "Armored Core VI", SaveRootKind.AppData, "ArmoredCore6",
             [".sl2"], "AC60000.sl2",
-            ["armoredcore6", "start_protected_game"], SaveLayout.Bnd4),
+            ["armoredcore6", "start_protected_game"], SaveLayout.Bnd4)
+        {
+            AlternateRoots = [new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "ArmoredCore6"))],
+        },
     ];
 
     public static GameProfile EldenRing => BuiltIn[0];

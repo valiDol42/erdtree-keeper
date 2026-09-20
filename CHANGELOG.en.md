@@ -14,6 +14,35 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.1
+
+### Fixed
+
+- **Dark Souls Remastered found no saves although the game was installed.** The program
+  looked for them in `%APPDATA%\NBGI\DARK SOULS REMASTERED`, by analogy with the other
+  FromSoftware games, while the game puts its save into Documents. Every game now has a list
+  of known locations rather than one: the program checks them all and takes the one that
+  exists. A Documents folder moved to another drive is handled too - the path comes from the
+  system rather than being assembled from the user name.
+
+  Fallback paths were added for the other games as well: Dark Souls II, III, Sekiro and
+  Armored Core VI are looked for both in `%APPDATA%` and in Documents, and Prepare to Die
+  Edition in three places, allowing for the different spellings of the folder name.
+
+- The "no saves found" message now lists every location that was checked instead of one. A
+  single path did not say where to look.
+
+### Verified
+
+- On a machine with the games installed: Dark Souls Remastered was found in Documents
+  (`DRAKS0005.sl2`, 4 MB), Dark Souls II as `DS2SOFS0000.sl2`, Dark Souls III as
+  `DS30000.sl2`. All three are recognised as a BND4 container and pass the check.
+- 158 automated checks, the new ones covering the lookup order for Dark Souls Remastered,
+  picking the existing path out of several, and the fallback game folders also being
+  rejected as a snapshot folder.
+
+---
+
 ## 1.5.0
 
 The program stopped being a save keeper for one game and learned to update itself.

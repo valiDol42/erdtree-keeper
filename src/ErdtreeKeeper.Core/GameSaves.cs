@@ -140,7 +140,10 @@ public static class GameSaves
         {
             foreach (var game in GameProfiles.BuiltIn)
             {
-                if (IsInside(path, game.ResolveRoot())) return true;
+                foreach (var candidate in game.ResolveRoots())
+                {
+                    if (IsInside(path, candidate)) return true;
+                }
             }
 
             return false;

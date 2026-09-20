@@ -37,6 +37,39 @@ seed.Values.UpdatesAllowed = null;
 seed.Values.UpdatesCheckOnStart = false;
 seed.Save();
 
+// Разведка по играм: ERDTREE_KEEPER_GAMES=1 печатает, где каждая встроенная
+// игра ищет сохранения на этой машине и что нашла. Окно не нужно.
+if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_GAMES") == "1")
+{
+    foreach (var game in GameProfiles.BuiltIn)
+    {
+        var root = game.ResolveRoot();
+        var accounts = GameSaves.FindAccounts(game, root);
+        var files = accounts.Sum(a => GameSaves.FindSaveFiles(game, a.Path).Count);
+
+        Console.WriteLine($"{game.Name}");
+        foreach (var candidate in game.ResolveRoots())
+        {
+            Console.WriteLine($"    {(Directory.Exists(candidate) ? "есть " : "нет  ")} {candidate}");
+        }
+
+        Console.WriteLine($"    -> аккаунтов {accounts.Count}, файлов {files}");
+        foreach (var account in accounts)
+        {
+            foreach (var file in GameSaves.FindSaveFiles(game, account.Path))
+            {
+                var bytes = File.ReadAllBytes(file.Path);
+                var check = SaveIntegrity.Inspect(game, bytes);
+                var verdict = check.Ok ? "годен" : "ОТКАЗ: " + check.Problem;
+                var magic = System.Text.Encoding.ASCII.GetString(bytes, 0, Math.Min(4, bytes.Length));
+                Console.WriteLine($"       {account.SteamId}  {file.Name}  {file.Length / 1024} КБ  [{magic}]  {verdict}");
+            }
+        }
+    }
+
+    return;
+}
+
 // Настоящая проверка обновления: ERDTREE_KEEPER_NETTEST=check спрашивает
 // GitHub, =full ещё и качает архив со сверкой контрольной суммы. Окно не
 // нужно - выходим до старта Avalonia.

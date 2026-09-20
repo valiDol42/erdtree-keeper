@@ -822,8 +822,16 @@ public sealed class MainViewModel : ViewModelBase
             SelectedAccount = null;
             SaveFiles.Clear();
             SelectedSaveFile = null;
-            SayKey("status.noSaveFolderFor", "WarnBrush", _game.Name, root);
-            Log.Warn(Loc.Get("log.noSavesFor", _game.Name), root);
+            // В сообщении - все места, где программа искала. У одной игры их
+            // бывает несколько, и "не найдено" без списка не даёт понять, куда
+            // смотреть: у Dark Souls Remastered сейв лежит в "Документах",
+            // а не там, где у остальных игр FromSoftware.
+            var searched = SavesRootOverride is null
+                ? string.Join("  ·  ", _game.ResolveRoots())
+                : root;
+
+            SayKey("status.noSaveFolderFor", "WarnBrush", _game.Name, searched);
+            Log.Warn(Loc.Get("log.noSavesFor", _game.Name), searched);
             return;
         }
 

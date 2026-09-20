@@ -83,6 +83,64 @@ public class GameProfileTests : IDisposable
         Assert.Equal(".sav", game.DefaultExtension);
     }
 
+    /// <summary>
+    /// У игры бывает несколько мест хранения, и одного пути мало. Dark Souls
+    /// Remastered кладёт сейв в "Документы", а не в %APPDATA%, куда его
+    /// поместили бы по аналогии с остальными играми FromSoftware - именно на
+    /// этом программа и промахнулась, когда путь был один.
+    /// </summary>
+    [Fact]
+    public void Dark_souls_remastered_looks_in_documents_first()
+    {
+        var game = GameProfiles.BuiltIn.First(g => g.Id == "dark-souls-remastered");
+        var roots = game.ResolveRoots().ToList();
+
+        Assert.Equal(2, roots.Count);
+        Assert.StartsWith(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), roots[0]);
+        Assert.StartsWith(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), roots[1]);
+        Assert.All(roots, r => Assert.EndsWith(Path.Combine("NBGI", "DARK SOULS REMASTERED"), r));
+    }
+
+    /// <summary>
+    /// Выбирается тот путь, который есть на диске. Пока не существует ни один,
+    /// остаётся основной - человеку надо показать, где программа искала.
+    /// </summary>
+    [Fact]
+    public void The_root_that_exists_wins()
+    {
+        var existing = Path.Combine(_folder, "есть");
+        Directory.CreateDirectory(existing);
+
+        var game = GameProfiles.FromCustom(new CustomGame
+        {
+            Id = "custom-test",
+            Name = "Игра",
+            Folder = Path.Combine(_folder, "нет-такой"),
+        }) with
+        {
+            AlternateRoots = [new SaveRoot(SaveRootKind.Custom, existing)],
+        };
+
+        Assert.Equal(existing, game.ResolveRoot());
+
+        var nowhere = game with { AlternateRoots = [] };
+        Assert.Equal(Path.Combine(_folder, "нет-такой"), nowhere.ResolveRoot());
+    }
+
+    /// <summary>Запасные пути игр тоже под запретом для папки снимков.</summary>
+    [Fact]
+    public void Alternate_game_folders_are_rejected_too()
+    {
+        var remastered = GameProfiles.BuiltIn.First(g => g.Id == "dark-souls-remastered");
+
+        foreach (var candidate in remastered.ResolveRoots())
+        {
+            Assert.True(GameSaves.IsInsideGameFolder(candidate), candidate);
+        }
+    }
+
     [Fact]
     public void Extensions_are_parsed_from_a_plain_list()
     {

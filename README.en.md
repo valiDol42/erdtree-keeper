@@ -86,7 +86,9 @@ instructions are below.
 
 - The save folder of the selected game and the save files inside it. For Elden Ring that is
   `%APPDATA%\EldenRing` with its `.sl2` and `.co2` files, for Dark Souls III it is
-  `%APPDATA%\DarkSoulsIII`, and so on; for a game added by hand, the folder you picked.
+  `%APPDATA%\DarkSoulsIII`, for Dark Souls Remastered it is `Documents\NBGI\DARK SOULS
+  REMASTERED`; for a game added by hand, the folder you picked. A game can have several
+  known locations, and the program checks them all.
 - Steam's own files on disk (`libraryfolders.vdf`, `appmanifest_*.acf`) - only while the
   "Add a game" window is open, to list the installed games.
 - Files are opened read-only, in a sharing mode that does not disturb the game.
