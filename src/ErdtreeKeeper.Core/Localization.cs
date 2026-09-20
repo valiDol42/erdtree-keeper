@@ -937,6 +937,10 @@ public sealed class Loc : INotifyPropertyChanged
             "It is unclear which file to restore into - pick a save file"),
         ["status.integrityBasic"] = ("Проверено, насколько это возможно", "Checked as far as it is possible"),
         ["status.damaged"] = ("Файл повреждён", "The file is damaged"),
+        ["source.alsoProfiles"] = (
+            "а также в других профилях Windows ({0})",
+            "and in the other Windows profiles ({0})"),
+        ["source.fromProfile"] = ("профиль Windows: {0}", "Windows profile: {0}"),
         ["source.noReader"] = (
             "Для {0} программа работает с файлами, но не с их содержимым",
             "For {0} the program works with files, not with what is inside them"),

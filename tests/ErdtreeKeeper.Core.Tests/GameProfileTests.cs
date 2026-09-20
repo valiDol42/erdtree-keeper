@@ -93,7 +93,10 @@ public class GameProfileTests : IDisposable
     public void Dark_souls_remastered_looks_in_documents_first()
     {
         var game = GameProfiles.BuiltIn.First(g => g.Id == "dark-souls-remastered");
-        var roots = game.ResolveRoots().ToList();
+
+        // Свой профиль проверяется первым, и в нём два места: "Документы" и
+        // %APPDATA%. Чужие профили идут следом и здесь не рассматриваются.
+        var roots = game.ResolveOwnRoots().ToList();
 
         Assert.Equal(2, roots.Count);
         Assert.StartsWith(
@@ -139,6 +142,56 @@ public class GameProfileTests : IDisposable
         {
             Assert.True(GameSaves.IsInsideGameFolder(candidate), candidate);
         }
+    }
+
+    /// <summary>
+    /// Профилей Windows на машине бывает несколько, и игру могли запускать не
+    /// под тем, под которым открыли программу. Поиск обязан заглянуть и туда.
+    /// </summary>
+    [Fact]
+    public void Other_windows_profiles_are_searched_too()
+    {
+        var game = GameProfiles.BuiltIn.First(g => g.Id == "dark-souls-3");
+        var all = game.ResolveRoots().ToList();
+        var mine = game.ResolveOwnRoots().ToList();
+
+        Assert.Equal(2, mine.Count);
+        Assert.All(mine, m => Assert.Contains(m, all));
+
+        // На машине без других профилей списки совпадают - это не ошибка.
+        var others = WindowsProfiles.Others();
+        Assert.Equal(mine.Count + others.Count * mine.Count, all.Count);
+
+        foreach (var profile in others)
+        {
+            Assert.Contains(all, path => path.StartsWith(profile, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>Свой профиль в списке чужих не появляется - его пути берутся у системы.</summary>
+    [Fact]
+    public void My_own_profile_is_not_listed_as_someone_elses()
+    {
+        var own = WindowsProfiles.Own;
+
+        Assert.DoesNotContain(WindowsProfiles.Others(),
+            p => string.Equals(p, own, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Null(WindowsProfiles.NameOf(Path.Combine(own, "AppData", "Roaming", "EldenRing")));
+    }
+
+    /// <summary>Папка, указанная вручную, к профилю не привязана и по профилям не размножается.</summary>
+    [Fact]
+    public void A_hand_picked_folder_is_not_multiplied_across_profiles()
+    {
+        var game = GameProfiles.FromCustom(new CustomGame
+        {
+            Id = "custom-test",
+            Name = "Игра",
+            Folder = _folder,
+        });
+
+        Assert.Equal([_folder], game.ResolveRoots().ToList());
     }
 
     [Fact]

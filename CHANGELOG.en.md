@@ -14,6 +14,34 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.2
+
+### Fixed
+
+- **Saves were looked for only in the current Windows profile.** A machine usually has
+  several - an old one left after a reinstall, a second person in the family - and the game
+  may well have been played under another. The program answered "no saves found" while the
+  files sat right there, in a neighbouring folder under `C:\Users`.
+
+  Every profile it can reach is now checked. Someone else's profile is normally closed by
+  permissions, and such a profile is simply skipped; the program asks for no rights. A folder
+  found in another profile is labelled with its name: two profiles give two folders with the
+  same Steam account number, and without the label they cannot be told apart.
+
+- The "no saves found" message lists the places in your own profile and says separately that
+  the other profiles were checked too. A full list of a dozen paths would explain nothing.
+
+### Verified
+
+- On a machine with four Windows profiles: the games are found in the current profile,
+  system links such as "All Users" stay out of the search, and inaccessible folders do not
+  get in the way.
+- 161 automated checks, the new ones covering that other profiles enter the search, that
+  your own profile is not counted as someone else's, and that a hand-picked folder is not
+  multiplied across profiles.
+
+---
+
 ## 1.5.1
 
 ### Fixed

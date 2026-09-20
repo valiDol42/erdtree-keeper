@@ -19,9 +19,21 @@ public sealed class AccountItem(SaveAccount account, string? alias)
     public SaveAccount Account { get; } = account;
     public string? Alias { get; set; } = alias;
 
-    public string Display => string.IsNullOrWhiteSpace(Alias)
-        ? Account.SteamId
-        : $"{Alias}  ·  {Account.SteamId}";
+    public string Display
+    {
+        get
+        {
+            var name = string.IsNullOrWhiteSpace(Alias)
+                ? Account.SteamId
+                : $"{Alias}  ·  {Account.SteamId}";
+
+            // Папка из чужого профиля Windows подписывается его именем: иначе
+            // две одинаковые строки в списке ничем не отличаются.
+            return Account.WindowsProfile is { Length: > 0 } profile
+                ? $"{name}  ·  {Loc.Get("source.fromProfile", profile)}"
+                : name;
+        }
+    }
 }
 
 public sealed class MainViewModel : ViewModelBase
@@ -827,8 +839,13 @@ public sealed class MainViewModel : ViewModelBase
             // смотреть: у Dark Souls Remastered сейв лежит в "Документах",
             // а не там, где у остальных игр FromSoftware.
             var searched = SavesRootOverride is null
-                ? string.Join("  ·  ", _game.ResolveRoots())
+                ? string.Join("  ·  ", _game.ResolveOwnRoots())
                 : root;
+
+            // Про чужие профили - одной строкой: их пути человеку ничего не
+            // говорят, а знать, что там тоже смотрели, полезно.
+            var others = SavesRootOverride is null ? WindowsProfiles.Others().Count : 0;
+            if (others > 0) searched += "  ·  " + Loc.Get("source.alsoProfiles", others);
 
             SayKey("status.noSaveFolderFor", "WarnBrush", _game.Name, searched);
             Log.Warn(Loc.Get("log.noSavesFor", _game.Name), searched);

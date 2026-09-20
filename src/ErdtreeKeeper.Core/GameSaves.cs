@@ -3,6 +3,14 @@ namespace ErdtreeKeeper.Core;
 /// <summary>Папка сохранений одного Steam-аккаунта.</summary>
 public sealed record SaveAccount(string SteamId, string Path, DateTime Modified)
 {
+    /// <summary>
+    /// Профиль Windows, в котором нашлась папка, - пусто, если это свой.
+    ///
+    /// Два профиля дают две папки с одинаковым номером аккаунта Steam, и без
+    /// имени профиля в списке их не различить.
+    /// </summary>
+    public string? WindowsProfile { get; init; }
+
     /// <summary>Признак того, что Steam синхронизирует эту папку с облаком.</summary>
     public bool HasSteamCloudMarker => File.Exists(System.IO.Path.Combine(Path, "steam_autocloud.vdf"));
 }
@@ -46,20 +54,34 @@ public static class GameSaves
     /// </summary>
     public static List<SaveAccount> FindAccounts(GameProfile game, string? root = null)
     {
-        var dir = root ?? game.ResolveRoot();
-        var accounts = new List<SaveAccount>();
-        if (!Directory.Exists(dir)) return accounts;
+        // Заданная папка - только она: так работает инструмент снимков экрана.
+        // Без неё обходим все известные места, включая чужие профили Windows.
+        var roots = root is null ? game.ResolveRoots() : [root];
 
-        foreach (var sub in SafeEnumerateDirectories(dir))
+        var accounts = new List<SaveAccount>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dir in roots)
         {
-            var account = Describe(game, sub);
-            if (account is not null) accounts.Add(account);
+            if (!SafeExists(dir) || !seen.Add(System.IO.Path.GetFullPath(dir))) continue;
+
+            foreach (var sub in SafeEnumerateDirectories(dir))
+            {
+                var account = Describe(game, sub);
+                if (account is not null) accounts.Add(account);
+            }
+
+            var atRoot = Describe(game, dir);
+            if (atRoot is not null) accounts.Add(atRoot);
         }
 
-        var atRoot = Describe(game, dir);
-        if (atRoot is not null) accounts.Add(atRoot);
-
         return accounts.OrderByDescending(a => a.Modified).ToList();
+    }
+
+    private static bool SafeExists(string path)
+    {
+        try { return Directory.Exists(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 
     /// <summary>Аккаунты Elden Ring - прежняя подпись, которой пользуются тесты и стенд.</summary>
@@ -87,8 +109,13 @@ public static class GameSaves
             return null;
         }
 
-        return new SaveAccount(System.IO.Path.GetFileName(folder.TrimEnd(
-            System.IO.Path.DirectorySeparatorChar)), folder, modified);
+        return new SaveAccount(
+            System.IO.Path.GetFileName(folder.TrimEnd(System.IO.Path.DirectorySeparatorChar)),
+            folder,
+            modified)
+        {
+            WindowsProfile = WindowsProfiles.NameOf(folder),
+        };
     }
 
     /// <summary>Перечисляет файлы сохранений внутри папки аккаунта.</summary>

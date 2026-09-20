@@ -58,6 +58,21 @@ public sealed record SaveRoot(SaveRootKind Kind, string Path)
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path),
         _ => Path,
     };
+
+    /// <summary>
+    /// То же место, но в чужом профиле Windows. Для своего профиля пути берутся
+    /// у системы, а здесь собираются из стандартных имён: узнать, куда сосед
+    /// перенёс свои "Документы", программа не может и не пытается.
+    ///
+    /// Для папки, указанной вручную, смысла в этом нет - такой путь абсолютный
+    /// и к профилю не привязан.
+    /// </summary>
+    public string? ResolveIn(string profileFolder) => Kind switch
+    {
+        SaveRootKind.AppData => System.IO.Path.Combine(profileFolder, "AppData", "Roaming", Path),
+        SaveRootKind.Documents => System.IO.Path.Combine(profileFolder, "Documents", Path),
+        _ => null,
+    };
 }
 
 /// <summary>
@@ -89,12 +104,44 @@ public sealed record GameProfile(
     /// </summary>
     public IReadOnlyList<SaveRoot> AlternateRoots { get; init; } = [];
 
-    /// <summary>Все места, где стоит искать сохранения, в порядке проверки.</summary>
+    /// <summary>
+    /// Все места, где стоит искать сохранения, в порядке проверки: сначала
+    /// свой профиль Windows, затем остальные профили на этом компьютере.
+    ///
+    /// Профилей на машине бывает несколько - старый после переустановки,
+    /// второй человек в семье, - и игру вполне могли запускать под другим.
+    /// Искать только в своём означало бы отвечать "сохранений нет" там, где
+    /// они есть.
+    /// </summary>
     public IEnumerable<string> ResolveRoots()
     {
-        yield return new SaveRoot(RootKind, RootPath).Resolve();
+        foreach (var place in ResolveOwnRoots()) yield return place;
 
-        foreach (var alternate in AlternateRoots) yield return alternate.Resolve();
+        foreach (var profile in WindowsProfiles.Others())
+        {
+            foreach (var place in Places())
+            {
+                var inProfile = place.ResolveIn(profile);
+                if (inProfile is not null) yield return inProfile;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Только места в своём профиле. Их показывают человеку, когда сохранения
+    /// не нашлись: полный список с чужими профилями занял бы десяток строк и
+    /// ничего не объяснил.
+    /// </summary>
+    public IEnumerable<string> ResolveOwnRoots()
+    {
+        foreach (var place in Places()) yield return place.Resolve();
+    }
+
+    private List<SaveRoot> Places()
+    {
+        var places = new List<SaveRoot>(AlternateRoots.Count + 1) { new(RootKind, RootPath) };
+        places.AddRange(AlternateRoots);
+        return places;
     }
 
     /// <summary>
