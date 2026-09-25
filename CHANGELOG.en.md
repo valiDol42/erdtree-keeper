@@ -14,6 +14,17 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.5
+
+### Fixed
+
+- **The first-run welcome promised the program never goes online.** The "no updates, no
+  telemetry" line dated from before the update check existed. It now says what is true: no
+  data is sent, and the program goes online only to check for updates - when you tell it to,
+  and only with your permission.
+
+---
+
 ## 1.5.4
 
 ### Fixed

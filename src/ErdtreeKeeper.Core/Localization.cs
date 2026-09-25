@@ -267,8 +267,8 @@ public sealed class Loc : INotifyPropertyChanged
             "•  Keeps its settings in a single file next to itself."),
         ["onboard.doesNot"] = ("ЧЕГО ОНА НЕ ДЕЛАЕТ", "WHAT IT DOES NOT DO"),
         ["onboard.not1"] = (
-            "•  Не выходит в интернет: ни обновлений, ни статистики, ни отправки файлов. Ссылка выше открывает сайт в вашем браузере - соединение устанавливает он, а не программа.",
-            "•  Does not go online: no updates, no telemetry, no uploads. The link above opens your browser - the browser makes the connection, not this program."),
+            "•  Не отправляет ваши данные: ни статистики, ни файлов. В интернет обращается только за обновлениями - по вашей команде и с вашего разрешения.",
+            "•  Does not send your data: no telemetry, no uploads. It goes online only to check for updates - when you tell it to, and only with your permission."),
         ["onboard.not2"] = (
             "•  Не меняет ни одного байта внутри сохранения - только копирует файл целиком.",
             "•  Does not change a single byte inside a save - it copies the whole file."),

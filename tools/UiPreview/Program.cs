@@ -392,6 +392,10 @@ static void ShootSteam(string fixture, string outputDir, bool english)
     var erRoot = Path.Combine(saves, "EldenRing");
     var erSave = Directory.GetFiles(erRoot, "ER0000.sl2", SearchOption.AllDirectories)[0];
 
+    // Сейв "только что записан": руководство объясняет зелёный индикатор, и
+    // главный кадр должен его показывать, а не красный от часовой давности.
+    File.SetLastWriteTime(erSave, DateTime.Now.AddSeconds(-20));
+
     foreach (var old in new[] { "Снимки", "Snapshots" })
     {
         var folder = Path.Combine(root, old);
@@ -535,6 +539,8 @@ static void ShootSteam(string fixture, string outputDir, bool english)
     var ds3Snapshots = ds3.SnapshotFolder;
     Directory.CreateDirectory(ds3Snapshots);
     var ds3Save = Directory.GetFiles(ds3.SavesRoot, "DS30000.sl2", SearchOption.AllDirectories)[0];
+    File.SetLastWriteTime(ds3Save, DateTime.Now.AddSeconds(-40));
+    ds3.RefreshAccounts();
     foreach (var (name, days) in new[]
              {
                  (english ? "Nameless King_before" : "Безымянный король_before", -5),
