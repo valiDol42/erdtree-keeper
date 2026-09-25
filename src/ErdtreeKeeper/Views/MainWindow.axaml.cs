@@ -190,7 +190,10 @@ public partial class MainWindow : Window
     private async void OnShowTransparency(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm) return;
-        await Dialogs.TransparencyAsync(this, vm.SettingsPath, vm.SnapshotFolder);
+        // Путь - той игры, что выбрана сейчас: окно отвечает на вопрос "что
+        // программа трогает", и ответ про Elden Ring при открытом Dark Souls
+        // был бы неправдой.
+        await Dialogs.TransparencyAsync(this, vm.SettingsPath, vm.SnapshotFolder, vm.SavesRoot);
     }
 
     private async void OnShowAbout(object? sender, RoutedEventArgs e)

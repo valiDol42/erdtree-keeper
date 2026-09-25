@@ -219,7 +219,7 @@ public static class Dialogs
     /// Пути подставляются настоящие, вычисленные на этом компьютере, - в них
     /// видно имя текущего пользователя Windows, потому что ничего не зашито.
     /// </summary>
-    public static Window CreateTransparencyWindow(string settingsPath, string snapshotFolder)
+    public static Window CreateTransparencyWindow(string settingsPath, string snapshotFolder, string savesRoot)
     {
         var close = Action(Loc.Get("app.close"), primary: true);
 
@@ -235,7 +235,7 @@ public static class Dialogs
                 NetworkBadge(),
 
                 Section(Loc.Get("trans.reads"), Res<IBrush>("TextSecondaryBrush"),
-                    Loc.Get("trans.readsWhat", Core.GameSaves.DefaultRoot)),
+                    Loc.Get("trans.readsWhat", savesRoot)),
 
                 Section(Loc.Get("trans.writes"), Res<IBrush>("AccentBrightBrush"),
                     Loc.Get("trans.writesWhat", snapshotFolder, settingsPath,
@@ -256,8 +256,8 @@ public static class Dialogs
         return window;
     }
 
-    public static Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder) =>
-        CreateTransparencyWindow(settingsPath, snapshotFolder).ShowDialog(owner);
+    public static Task TransparencyAsync(Window owner, string settingsPath, string snapshotFolder, string savesRoot) =>
+        CreateTransparencyWindow(settingsPath, snapshotFolder, savesRoot).ShowDialog(owner);
 
     /// <summary>
     /// Отметка о том, как программа обращается с сетью.

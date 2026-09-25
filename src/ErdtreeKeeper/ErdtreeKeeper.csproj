@@ -14,7 +14,7 @@
     <AssemblyName>ErdtreeKeeper</AssemblyName>
     <RootNamespace>ErdtreeKeeper</RootNamespace>
     <Product>Erdtree Keeper</Product>
-    <AssemblyTitle>Erdtree Keeper - хранитель файлов сохранения Elden Ring</AssemblyTitle>
+    <AssemblyTitle>Erdtree Keeper - хранитель сохранений игр</AssemblyTitle>
     <!-- Версия задаётся в Directory.Build.props, в одном месте на весь проект. -->
 
     <!-- Никакой телеметрии и никаких обращений в сеть. -->

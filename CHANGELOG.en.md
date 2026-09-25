@@ -29,6 +29,11 @@ the bottom of the window and in the "About" dialog.
   one. On a Russian Windows, someone who picked English saw that list in Russian until they
   switched the language again.
 
+- **The program's texts spoke of one game.** The subtitle in the title bar, the first-run
+  welcome and the "What it does" window named Elden Ring and its folder even with Dark Souls
+  selected. The subtitle is now general, and "What it does" shows the folder of the game
+  selected right now.
+
 ### Verified
 
 - 165 automated checks, the new ones covering that only the changes reach the update window,

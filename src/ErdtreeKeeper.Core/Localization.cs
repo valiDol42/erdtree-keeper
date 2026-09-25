@@ -145,7 +145,7 @@ public sealed class Loc : INotifyPropertyChanged
     private static readonly Dictionary<string, (string Ru, string En)> Table = new()
     {
         // ─── Шапка и общее ──────────────────────────────────────────────
-        ["app.subtitle"] = ("Хранитель файлов сохранения Elden Ring", "Elden Ring save file keeper"),
+        ["app.subtitle"] = ("Хранитель сохранений игр", "Game save keeper"),
         ["app.whatItDoes"] = ("Что программа делает", "What it does"),
         ["app.about"] = ("О программе", "About"),
         ["app.close"] = ("Закрыть", "Close"),
@@ -252,8 +252,8 @@ public sealed class Loc : INotifyPropertyChanged
         // ─── Первый запуск ──────────────────────────────────────────────
         ["onboard.title"] = ("Прежде чем начать", "Before you start"),
         ["onboard.lead"] = (
-            "Эта программа копирует файлы сохранений Elden Ring, чтобы к ним можно было вернуться. Она открытая: исходный код можно прочитать целиком, и ниже честно написано, что именно она делает.",
-            "This program copies Elden Ring save files so you can go back to them. It is open source: you can read all of it, and below is a plain account of what it does."),
+            "Эта программа копирует файлы сохранений Elden Ring, Dark Souls и других игр, чтобы к ним можно было вернуться. Она открытая: исходный код можно прочитать целиком, и ниже честно написано, что именно она делает.",
+            "This program copies save files of Elden Ring, Dark Souls and other games so you can go back to them. It is open source: you can read all of it, and below is a plain account of what it does."),
         ["onboard.madeBy"] = ("Её делает команда карты", "Made by the team behind"),
         ["onboard.does"] = ("ЧТО ОНА ДЕЛАЕТ", "WHAT IT DOES"),
         ["onboard.does1"] = (
@@ -291,8 +291,8 @@ public sealed class Loc : INotifyPropertyChanged
             "The only outward request is an update check on GitHub, and it does not happen until you allow it. The program sends nothing about you: the request carries no identifiers and no details about the machine. Every request is written to the activity log with its full address."),
         ["trans.reads"] = ("Читает", "Reads"),
         ["trans.readsWhat"] = (
-            "Папку сохранений {0} и файлы .sl2 и .co2 внутри неё. Файлы открываются только на чтение и в режиме, который не мешает игре.",
-            "The save folder {0} and the .sl2 and .co2 files inside it. Files are opened read-only, in a sharing mode that does not disturb the game."),
+            "Папку сохранений выбранной игры - сейчас это {0} - и файлы сохранений внутри неё. Файлы открываются только на чтение и в режиме, который не мешает игре.",
+            "The save folder of the selected game - right now {0} - and the save files inside it. Files are opened read-only, in a sharing mode that does not disturb the game."),
         ["trans.writes"] = ("Пишет", "Writes"),
         ["trans.writesWhat"] = (
             "Снимки в папку {0}\nНастройки в файл {1}\n\nВ папку игры программа пишет ровно один раз - когда вы нажимаете \"Восстановить в игру\". Перед этим текущий сейв всегда уезжает в подпапку \"{2}\".",

@@ -618,7 +618,7 @@ static void Shoot(string outputDir, int width, int height)
 
     // Диалоги. Пути настоящие - в них видно, что ничего не зашито жёстко.
     Capture(
-        Dialogs.CreateTransparencyWindow(model.SettingsPath, model.SnapshotFolder),
+        Dialogs.CreateTransparencyWindow(model.SettingsPath, model.SnapshotFolder, model.SavesRoot),
         "04-что-программа-делает.png", outputDir);
 
     // Список переключён на автосохранения, настройки раскрыты.
