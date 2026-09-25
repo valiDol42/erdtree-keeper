@@ -298,4 +298,45 @@ public class PortableSettingsTests : IDisposable
 
         Assert.True(PortableSettings.LoadFrom(_folder).Values.UpdatesAllowed);
     }
+
+    /// <summary>
+    /// Папка снимков не уходит за языком. В 1.5.0-1.5.3 путь вычислялся
+    /// заново при каждом запуске: человек на русской Windows переключался на
+    /// английский, перезапускал программу - и список пустел, потому что она
+    /// смотрела в "Snapshots", а снимки лежали в "Снимки".
+    /// </summary>
+    [Fact]
+    public void The_snapshot_folder_stays_put_when_the_language_changes()
+    {
+        File.WriteAllText(Path.Combine(_folder, "erdtree-keeper.settings.json"), "{\"Language\":\"Ru\"}");
+
+        var first = PortableSettings.LoadFrom(_folder);
+        var folder = first.SnapshotFolderOf(GameProfiles.EldenRing);
+        Assert.Equal(Path.Combine(_folder, "Снимки"), folder);
+
+        first.Values.Language = nameof(Lang.En);
+        first.Save();
+
+        var second = PortableSettings.LoadFrom(_folder);
+        Assert.Equal(Lang.En, second.Language);
+        Assert.Equal(folder, second.SnapshotFolderOf(GameProfiles.EldenRing));
+    }
+
+    /// <summary>
+    /// Тех, кто успел попасть под эту ошибку, программа выручает: если путь
+    /// ещё не закреплён, а снимки лежат в папке на другом языке, берётся она.
+    /// </summary>
+    [Fact]
+    public void Snapshots_left_in_the_other_language_folder_are_found()
+    {
+        File.WriteAllText(Path.Combine(_folder, "erdtree-keeper.settings.json"), "{\"Language\":\"En\"}");
+        var old = Path.Combine(_folder, "Снимки");
+        Directory.CreateDirectory(old);
+        File.WriteAllBytes(Path.Combine(old, "Маргит_before.sl2"), [1]);
+
+        var settings = PortableSettings.LoadFrom(_folder);
+
+        Assert.Equal(old, settings.SnapshotFolderOf(GameProfiles.EldenRing));
+        Assert.Equal(old, PortableSettings.LoadFrom(_folder).StateOf(GameProfiles.EldenRing).SnapshotFolder);
+    }
 }

@@ -265,7 +265,7 @@ public sealed class MainViewModel : ViewModelBase
         // Прямо в поля, минуя свойства: сеттер папки снимков тянет за собой
         // папку автосохранений, и при переключении игры он перенёс бы туда
         // путь от предыдущей.
-        _snapshotFolder = state.SnapshotFolder ?? _settings.DefaultSnapshotFolder(_game);
+        _snapshotFolder = _settings.SnapshotFolderOf(_game);
         _autoFolder = state.AutoSnapshotFolder ?? Path.Combine(_snapshotFolder, SnapshotService.AutoFolder);
         _snapshotName = state.LastSnapshotName ?? "";
 

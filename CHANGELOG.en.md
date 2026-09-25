@@ -14,6 +14,33 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.4
+
+### Fixed
+
+- **After a language switch the snapshot list could come up empty.** The default snapshot
+  folder depends on the language: "Снимки" or "Snapshots". Before 1.5.0 the path was written
+  into the settings on first launch and never changed afterwards. 1.5.0 lost that: the path
+  was worked out afresh on every start, so on a Russian Windows, after switching to English,
+  the program looked in "Snapshots" while the snapshots sat in "Снимки". Nothing was lost, but
+  the list showed nothing.
+
+  The path is pinned again on first use. For anyone already caught by the bug, the program
+  helps out: if the path is not pinned yet and the snapshots are in the other language's
+  folder, that folder is taken.
+
+- The About window still spoke of a single game in its subtitle. Like the title bar, it now
+  reads "Game save keeper".
+
+### Verified
+
+- 167 automated checks, the new ones covering that the snapshot folder stays put when the
+  language changes, and that snapshots left in the other language's folder are found.
+- The screenshot harness caught the bug while shooting the English set for the Steam guide on
+  a machine running a Russian Windows.
+
+---
+
 ## 1.5.3
 
 ### Fixed

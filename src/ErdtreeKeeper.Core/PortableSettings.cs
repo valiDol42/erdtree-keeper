@@ -272,9 +272,45 @@ public sealed class PortableSettings
     /// копии разных игр смешались бы в одном списке, а удаление по кнопке
     /// задело бы чужие.
     /// </summary>
-    public string DefaultSnapshotFolder(GameProfile game)
+    public string DefaultSnapshotFolder(GameProfile game) => DefaultSnapshotFolder(game, Language);
+
+    /// <summary>
+    /// Папка снимков игры - закреплённая в настройках.
+    ///
+    /// Папка по умолчанию зависит от языка: "Снимки" или "Snapshots". Если её
+    /// не закрепить, смена языка уводит список в другую папку, и снимки,
+    /// сделанные до переключения, пропадают из виду. В 1.5.0-1.5.3 так и
+    /// было: путь вычислялся заново при каждом запуске, а до 1.5.0 он
+    /// записывался в настройки при первой загрузке.
+    ///
+    /// Путь закрепляется при первом обращении. Если к этому моменту уже есть
+    /// папка на другом языке и в ней лежат файлы - её успели создать версии,
+    /// где путь не закреплялся, - берётся она: иначе эти снимки так и
+    /// остались бы невидимыми.
+    /// </summary>
+    public string SnapshotFolderOf(GameProfile game)
     {
-        var root = System.IO.Path.Combine(AppFolderUsed, Loc.Get(Language, "path.snapshots"));
+        var state = StateOf(game);
+        if (!string.IsNullOrWhiteSpace(state.SnapshotFolder)) return state.SnapshotFolder;
+
+        var current = DefaultSnapshotFolder(game, Language);
+        var other = DefaultSnapshotFolder(game, Language == Lang.Ru ? Lang.En : Lang.Ru);
+        var chosen = !HasFiles(current) && HasFiles(other) ? other : current;
+
+        state.SnapshotFolder = chosen;
+        Save();
+        return chosen;
+    }
+
+    private static bool HasFiles(string folder)
+    {
+        try { return Directory.Exists(folder) && Directory.EnumerateFiles(folder).Any(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    public string DefaultSnapshotFolder(GameProfile game, Lang language)
+    {
+        var root = System.IO.Path.Combine(AppFolderUsed, Loc.Get(language, "path.snapshots"));
         if (game.Id == GameProfiles.EldenRingId) return root;
 
         var folder = SnapshotNaming.Sanitize(game.Name);

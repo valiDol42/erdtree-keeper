@@ -400,8 +400,11 @@ static void ShootSteam(string fixture, string outputDir, bool english)
 
     // Приветствие видно только при первом запуске - поэтому настройки с
     // чистого листа и этот кадр первым.
+    // Язык записан сразу - как у игрока, чья система на этом языке. Без него
+    // первый запуск взял бы язык этой машины, и английский набор получил бы
+    // закреплённую папку "Снимки".
     var settingsFile = Path.Combine(root, "erdtree-keeper.settings.json");
-    if (File.Exists(settingsFile)) File.Delete(settingsFile);
+    File.WriteAllText(settingsFile, "{\"Language\":\"" + (english ? "En" : "Ru") + "\"}");
 
     MainViewModel Fresh()
     {
