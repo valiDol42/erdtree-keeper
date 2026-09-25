@@ -365,6 +365,226 @@ static void ShootShowcase(string fixture, string outputDir, bool english)
 }
 
 /// <summary>
+/// Кадры для руководства Steam.
+///
+/// Стенд для этого запускается не из папки сборки, а из копии, положенной
+/// туда, куда программу распаковал бы игрок: тогда пути в окнах "О программе"
+/// и "Что программа делает" настоящие - папка программы, файл настроек рядом
+/// с ней, "Снимки" внутри, - а не служебные папки разработки.
+///
+/// Сохранения берутся из анонимизированной фикстуры: персонаж "Tarnished",
+/// номер аккаунта вымышленный. Порядок кадров важен: приветствие снимается
+/// первым, пока его не закрыли, а переключение языка - последним, потому что
+/// настройки у всех моделей общие.
+/// </summary>
+static void ShootSteam(string fixture, string outputDir, bool english)
+{
+    var width = 1180;
+    var height = 980;
+    var root = PortableSettings.AppFolder;
+
+    // Сохранения - копией фикстуры рядом с программой: чтение и запись в
+    // журнале операций указывают на эти пути.
+    var saves = Path.Combine(root, "saves");
+    if (Directory.Exists(saves)) Directory.Delete(saves, recursive: true);
+    CopyTree(Path.Combine(fixture, "er"), Path.Combine(saves, "EldenRing"));
+    CopyTree(Path.Combine(fixture, "ds3"), Path.Combine(saves, "DarkSoulsIII"));
+    var erRoot = Path.Combine(saves, "EldenRing");
+    var erSave = Directory.GetFiles(erRoot, "ER0000.sl2", SearchOption.AllDirectories)[0];
+
+    foreach (var old in new[] { "Снимки", "Snapshots" })
+    {
+        var folder = Path.Combine(root, old);
+        if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+    }
+
+    // Приветствие видно только при первом запуске - поэтому настройки с
+    // чистого листа и этот кадр первым.
+    var settingsFile = Path.Combine(root, "erdtree-keeper.settings.json");
+    if (File.Exists(settingsFile)) File.Delete(settingsFile);
+
+    MainViewModel Fresh()
+    {
+        var model = NewModel();
+        model.SavesRoot = erRoot;
+        model.RefreshAccounts();
+        return model;
+    }
+
+    void WaitFor(Func<bool> done, int tries = 40)
+    {
+        for (var i = 0; i < tries && !done(); i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+    }
+
+    // ─── 02. Первый запуск ──────────────────────────────────────────────
+    var first = Fresh();
+    Capture(new MainWindow { DataContext = first, Width = width, Height = height }, "02-first-run.png", outputDir);
+    first.DismissOnboardingCommand.Execute(null);
+
+    // Снимки в списке: четыре ручных и три автоснимка, под именами из
+    // справочника игры на нужном языке.
+    var snapshots = first.SnapshotFolder;
+    Directory.CreateDirectory(snapshots);
+
+    string Boss(string ru, string en)
+    {
+        var point = MapPoints.Bosses.FirstOrDefault(b => b.Name.Contains(en, StringComparison.OrdinalIgnoreCase));
+        if (point is null) return english ? en : ru;
+        return english || string.IsNullOrWhiteSpace(point.Ru) ? point.Name : point.Ru;
+    }
+
+    static string Named(string place, string suffix, bool dlc)
+    {
+        var name = dlc ? SnapshotNaming.EnsureDlcTag("") : "";
+        name = SnapshotNaming.Append(name, place);
+        return SnapshotNaming.ToFileName(SnapshotNaming.WithPairSuffix(name, suffix));
+    }
+
+    foreach (var (name, days) in new[]
+             {
+                 (Named(Boss("Маргит", "Margit"), SnapshotNaming.BeforeSuffix, false), -9),
+                 (Named(Boss("Реннала", "Rennala"), SnapshotNaming.AfterSuffix, false), -6),
+                 (Named(Boss("Радан", "Radahn"), SnapshotNaming.BeforeSuffix, false), -4),
+                 (Named(Boss("Мессмер", "Messmer"), SnapshotNaming.BeforeSuffix, true), -1),
+             })
+    {
+        var path = Path.Combine(snapshots, name);
+        File.Copy(erSave, path, overwrite: true);
+        File.SetLastWriteTime(path, DateTime.Now.AddDays(days).AddHours(-3));
+    }
+
+    var context = SaveContextReader.Read(File.ReadAllBytes(erSave));
+    var autoFolder = Path.Combine(snapshots, SnapshotService.AutoFolder);
+    Directory.CreateDirectory(autoFolder);
+    foreach (var minutes in new[] { 95, 60, 25 })
+    {
+        var at = DateTime.Now.AddMinutes(-minutes);
+        var path = Path.Combine(autoFolder, SnapshotNaming.AutoName(context, at));
+        File.Copy(erSave, path, overwrite: true);
+        File.SetLastWriteTime(path, at);
+    }
+
+    // ─── 01. Главное окно ───────────────────────────────────────────────
+    var main = Fresh();
+    main.AnalyzeCommand.Execute(null);
+    WaitFor(() => main.SaveContext is not null);
+    main.AutoSnapshotEnabled = true;
+    main.SnapshotName = "";
+    main.AddLocationCommand.Execute(null);
+    WaitFor(() => main.SnapshotName.Length > 0, 20);
+    main.AddBeforeCommand.Execute(null);
+    main.RefreshSnapshots();
+    main.Log.Entries.Clear();
+    Console.WriteLine($"   персонаж: {main.SaveContext?.Character.Name}, снимков: {main.Snapshots.Count}");
+    Capture(new MainWindow { DataContext = main, Width = width, Height = height }, "01-main.png", outputDir);
+
+    // ─── 03. Карточка персонажа, 04. Проверка целостности ───────────────
+    if (main.SaveContext is { } ctx)
+        Capture(Dialogs.CreatePlayerCardWindow(ctx), "03-player-card.png", outputDir);
+
+    var check = SaveIntegrity.Inspect(GameProfiles.EldenRing, File.ReadAllBytes(erSave));
+    Capture(Dialogs.CreateReportWindow(Loc.Get("dlg.integrityTitle"),
+        SaveIntegrity.BuildReport(GameProfiles.EldenRing, check, "ER0000.sl2")), "04-integrity.png", outputDir);
+
+    // ─── 05. Настройки автосохранения, 06. Список автосохранений ────────
+    Capture(Dialogs.CreateAutoSaveWindow(main.AutoMinutes, main.AutoKeep, main.AutoFolder,
+        _ => { }, _ => { }, () => Task.FromResult<string?>(null)), "05-autosave-settings.png", outputDir);
+
+    var autoList = Fresh();
+    autoList.AutoSnapshotEnabled = true;
+    autoList.SnapshotSourceIndex = 1;
+    autoList.Log.Entries.Clear();
+    Console.WriteLine($"   автосохранений в списке: {autoList.Snapshots.Count}");
+    Capture(new MainWindow { DataContext = autoList, Width = width, Height = height }, "06-autosave-list.png", outputDir);
+
+    // ─── 07. Что программа делает, 08. О программе ──────────────────────
+    // Папка сохранений - та, что программа показала бы игроку: настоящий
+    // путь игры на этой машине, а не копия фикстуры.
+    Capture(Dialogs.CreateTransparencyWindow(main.SettingsPath, main.SnapshotFolder,
+        GameProfiles.EldenRing.ResolveRoot()), "07-what-it-does.png", outputDir);
+    Capture(Dialogs.CreateAboutWindow(main.SettingsPath, main.IsPortable, main.SettingsFileState),
+        "08-about.png", outputDir);
+
+    // ─── 09. Журнал операций: настоящий снимок, сделанный кнопкой ───────
+    var logged = Fresh();
+    logged.Log.Entries.Clear();
+    logged.AnalyzeCommand.Execute(null);
+    WaitFor(() => logged.SaveContext is not null);
+    logged.SnapshotName = "";
+    logged.AddBossCommand.Execute(null);
+    WaitFor(() => logged.SnapshotName.Length > 0, 20);
+    logged.CreateSnapshotCommand.Execute(null);
+    WaitFor(() => logged.Log.Entries.Any(e => e.Kind == ActivityKind.Write));
+    var logWindow = new MainWindow { DataContext = logged, Width = width, Height = height };
+    logWindow.Opened += (_, _) =>
+    {
+        var toggle = logWindow.FindControl<Avalonia.Controls.Primitives.ToggleButton>("LogToggle");
+        if (toggle is not null) toggle.IsChecked = true;
+    };
+    Console.WriteLine($"   записей в журнале: {logged.Log.Entries.Count}");
+    Capture(logWindow, "09-activity-log.png", outputDir);
+
+    // ─── 11. Dark Souls III ─────────────────────────────────────────────
+    var ds3 = NewModel();
+    ds3.SelectedGame = ds3.Games.First(g => g.Id == "dark-souls-3");
+    ds3.SavesRoot = Path.Combine(saves, "DarkSoulsIII");
+    ds3.RefreshAccounts();
+    var ds3Snapshots = ds3.SnapshotFolder;
+    Directory.CreateDirectory(ds3Snapshots);
+    var ds3Save = Directory.GetFiles(ds3.SavesRoot, "DS30000.sl2", SearchOption.AllDirectories)[0];
+    foreach (var (name, days) in new[]
+             {
+                 (english ? "Nameless King_before" : "Безымянный король_before", -5),
+                 (english ? "Twin Princes_after" : "Принцы-близнецы_after", -2),
+                 (SnapshotNaming.AppendTime(english ? "Ringed City" : "Город за стеной", DateTime.Now.AddHours(-20)), 0),
+             })
+    {
+        var path = Path.Combine(ds3Snapshots, name + ".sl2");
+        File.Copy(ds3Save, path, overwrite: true);
+        File.SetLastWriteTime(path, DateTime.Now.AddDays(days).AddHours(-1));
+    }
+
+    ds3.SnapshotName = english ? "Soul of Cinder" : "Душа пепла";
+    ds3.AddTimeCommand.Execute(null);
+    ds3.RefreshSnapshots();
+    ds3.Log.Entries.Clear();
+    Capture(new MainWindow { DataContext = ds3, Width = width, Height = height }, "11-games.png", outputDir);
+    ds3.SelectedGame = ds3.Games.First(g => g.Id == GameProfiles.EldenRingId);
+
+    // ─── 12. Добавление игры, 13. Обновление ────────────────────────────
+    Capture(AddGameDialog.Create((_, _) => Task.FromResult<string?>(null), _ => { }), "12-add-game.png", outputDir);
+
+    var current = AppInfo.Version;
+    var parts = current.Split('.').Select(int.Parse).ToArray();
+    var previous = parts[2] > 0 ? $"{parts[0]}.{parts[1]}.{parts[2] - 1}" : current;
+    var notes = File.ReadAllText(Path.Combine(fixture, $"notes-{(english ? "en" : "ru")}.md"));
+    var release = new ReleaseInfo("v" + current, current, AppUpdate.ReadableNotes(notes),
+        $"https://github.com/valiDol42/erdtree-keeper/releases/tag/v{current}", [], DateTimeOffset.Now);
+    Capture(UpdateDialog.CreatePreview(NewModel(), release, previous), "13-update.png", outputDir);
+
+    // ─── 10. Переключение языка - последним ─────────────────────────────
+    // Кадр показывает окно на другом языке: в русском руководстве -
+    // английское, и наоборот. Язык потом возвращается в настройках.
+    var switched = Fresh();
+    switched.AnalyzeCommand.Execute(null);
+    WaitFor(() => switched.SaveContext is not null);
+    if (english) switched.IsRussian = true; else switched.IsEnglish = true;
+    switched.Log.Entries.Clear();
+    Capture(new MainWindow { DataContext = switched, Width = width, Height = height }, "10-language-switch.png", outputDir);
+    if (english) switched.IsEnglish = true; else switched.IsRussian = true;
+}
+
+static void CopyTree(string from, string to)
+{
+    foreach (var file in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
+    {
+        var target = Path.Combine(to, Path.GetRelativePath(from, file));
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(file, target, overwrite: true);
+    }
+}
+
+/// <summary>
 /// Проверка установки: обновление обязано заменить свои файлы и не тронуть
 /// чужие. Настройки и снимки лежат в той же папке, и потерять их при
 /// обновлении - худшее, что программа может сделать с человеком, который ей
@@ -563,6 +783,14 @@ static async Task Bench(string savePath)
 
 static void Shoot(string outputDir, int width, int height)
 {
+    // Снимки для руководства Steam - полный набор окон.
+    if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_STEAM") is { Length: > 0 } steamFixture)
+    {
+        ShootSteam(steamFixture, outputDir,
+            Environment.GetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG") == "en");
+        return;
+    }
+
     // Снимки для карточки на сайте - отдельный набор со своей фикстурой.
     if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_SHOWCASE") is { Length: > 0 } showcase)
     {
