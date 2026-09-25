@@ -308,8 +308,8 @@ public sealed class Loc : INotifyPropertyChanged
 
         // ─── О программе ────────────────────────────────────────────────
         ["about.version"] = (
-            "Версия {0}. Хранитель файлов сохранения Elden Ring.\nЛицензия MIT.",
-            "Version {0}. Elden Ring save file keeper.\nMIT License."),
+            "Версия {0}. Хранитель сохранений игр.\nЛицензия MIT.",
+            "Version {0}. Game save keeper.\nMIT License."),
         ["about.site"] = ("САЙТ ПРОЕКТА", "PROJECT SITE"),
         ["about.siteWhat"] = (
             "Карта и трекер прогресса Elden Ring. Оттуда же взят справочник мест благодати и арен боссов, по которому программа называет снимки.",
@@ -423,7 +423,6 @@ public sealed class Loc : INotifyPropertyChanged
         ["status.pickFolder"] = (
             "Выберите папку назначения - она запомнится",
             "Choose a destination folder - it will be remembered"),
-        ["status.noSaveFolder"] = ("Папка сохранений не найдена: {0}", "Save folder not found: {0}"),
         ["status.gameFolderRejected"] = (
             "Это папка сохранений игры. Выберите другую - иначе снимки смешаются с сейвами",
             "That is the game save folder. Pick another one, or snapshots will mix with saves"),
@@ -644,9 +643,6 @@ public sealed class Loc : INotifyPropertyChanged
         ["log.autoOff"] = (
             "Автоснимки выключены",
             "Autosnapshots off"),
-        ["log.noSaves"] = (
-            "Сохранения Elden Ring не найдены",
-            "No Elden Ring saves found"),
         ["log.parsingSave"] = (
             "Разбираю сохранение",
             "Parsing the save"),
