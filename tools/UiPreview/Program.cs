@@ -333,18 +333,24 @@ static void ShootShowcase(string fixture, string outputDir, bool english)
     Capture(new MainWindow { DataContext = ds3, Width = width, Height = height },
         $"keeper-games-{suffix}.png", outputDir);
 
-    // ─── 3. Обновление: настоящий переход 1.5.1 -> 1.5.2 ───────────────
+    // ─── 3. Обновление: переход с предыдущего патча на текущую версию ───
+    // Выпуск настоящий - номер этой сборки и её раздел журнала изменений,
+    // установленной считается предыдущая версия: ровно то, что увидит игрок.
+    var current = AppInfo.Version;
+    var parts = current.Split('.').Select(int.Parse).ToArray();
+    var previous = parts[2] > 0 ? $"{parts[0]}.{parts[1]}.{parts[2] - 1}" : current;
+
     var notes = File.ReadAllText(Path.Combine(fixture, $"notes-{suffix}.md"));
     var release = new ReleaseInfo(
-        "v1.5.2",
-        "1.5.2",
+        "v" + current,
+        current,
         AppUpdate.ReadableNotes(notes),
-        "https://github.com/valiDol42/erdtree-keeper/releases/tag/v1.5.2",
+        $"https://github.com/valiDol42/erdtree-keeper/releases/tag/v{current}",
         [],
         DateTimeOffset.Now);
 
     var updates = NewModel();
-    Capture(UpdateDialog.CreatePreview(updates, release, "1.5.1"),
+    Capture(UpdateDialog.CreatePreview(updates, release, previous),
         $"keeper-update-{suffix}.png", outputDir);
 
     // ─── 4. Проверка целостности - настоящий отчёт по фикстуре ──────────
