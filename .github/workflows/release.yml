@@ -91,6 +91,34 @@ jobs:
             dist/*.zip
             out/ErdtreeKeeper.exe
 
+      # В начало текста выпуска - раздел этой версии из CHANGELOG.md. Именно
+      # его программа показывает в окне обновления под «Что изменилось»; всё,
+      # что ниже границы, она отрезает. Раньше там стояла одна инструкция по
+      # проверке файла, и человек читал про SmartScreen вместо новостей.
+      - name: Заметки выпуска
+        shell: pwsh
+        run: |
+          $number = '${{ steps.version.outputs.number }}'
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = [Array]::IndexOf($lines, "## $number")
+          $changes = @()
+          if ($start -ge 0) {
+            for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+              if ($lines[$i] -match '^## ' -or $lines[$i] -eq '---') { break }
+              $changes += $lines[$i]
+            }
+          } else {
+            Write-Host "::warning::В CHANGELOG.md нет раздела ## $number - в выпуске будет только инструкция"
+          }
+
+          $marker = '<!-- keeper:end-of-changes -->'
+          $details = Get-Content .github/release-details.md -Encoding utf8 -Raw
+          $details = $details.Replace('{repository}', '${{ github.repository }}')
+
+          $body = (($changes -join "`n").Trim()) + "`n`n" + $marker + "`n`n" + $details
+          Set-Content dist/NOTES.md $body -Encoding utf8
+          Get-Content dist/NOTES.md -TotalCount 30
+
       - name: Опубликовать релиз
         uses: softprops/action-gh-release@v2
         with:
@@ -99,32 +127,4 @@ jobs:
           files: |
             dist/*.zip
             dist/SHA256SUMS.txt
-          body: |
-            ## Как проверить, что файл настоящий
-
-            **Контрольная сумма.** Сравните с `SHA256SUMS.txt`:
-
-            ```powershell
-            Get-FileHash .\ErdtreeKeeper.exe -Algorithm SHA256
-            ```
-
-            Ту же сумму программа считает сама - в окне «О программе».
-
-            **Происхождение сборки.** Если репозиторий публичный, у файла есть attestation -
-            подтверждение, что он собран здесь, в GitHub Actions, именно из этого кода:
-
-            ```bash
-            gh attestation verify ErdtreeKeeper.exe --repo ${{ github.repository }}
-            ```
-
-            У приватного репозитория GitHub такую подпись не выдаёт, и эта проверка
-            вернёт ошибку - тогда остаются контрольная сумма и сборка из исходников.
-
-            ## Установка
-
-            Распакуйте архив в любую папку и запустите `ErdtreeKeeper.exe`. Установщика нет,
-            программа портативная, настройки лежат рядом с ней.
-
-            При первом запуске Windows может показать окно SmartScreen: у программы нет
-            платного сертификата подписи. Это сообщение об отсутствии репутации, а не о
-            вредоносности - подробности в [SECURITY.md](SECURITY.md).
+          body_path: dist/NOTES.md

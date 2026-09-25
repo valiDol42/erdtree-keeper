@@ -37,6 +37,16 @@ seed.Values.UpdatesAllowed = null;
 seed.Values.UpdatesCheckOnStart = false;
 seed.Save();
 
+// Анонимизация сейва для снимков экрана: ERDTREE_KEEPER_ANONYMIZE="<откуда>|<куда>".
+// Имена персонажей становятся "Tarnished", SteamID - вымышленным, контрольные
+// суммы пересчитываются. Окно не нужно.
+if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_ANONYMIZE") is { Length: > 0 } anonymize)
+{
+    var parts = anonymize.Split('|');
+    Anonymize(parts[0], parts[1]);
+    return;
+}
+
 // Разведка по играм: ERDTREE_KEEPER_GAMES=1 печатает, где каждая встроенная
 // игра ищет сохранения на этой машине и что нашла. Окно не нужно.
 if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_GAMES") == "1")
@@ -94,6 +104,259 @@ AppBuilder.Configure<App>()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
     .WithInterFont()
     .Start((_, _) => Shoot(outputDir, width, height), args);
+
+/// <summary>
+/// Копия сейва, которую можно показывать публично.
+///
+/// Настоящее имя персонажа и SteamID64 на снимке экрана ведут к живому
+/// профилю Steam. Здесь они заменяются: имена - на "Tarnished", номер - на
+/// вымышленный, ниже диапазона существующих аккаунтов. Имя лежит в поле на 16
+/// символов, поэтому замена пишется в поле целиком и только там, где за
+/// именем действительно пусто, - иначе это было бы не поле, а совпадение
+/// внутри других данных. После замены пересчитываются все 11 контрольных сумм:
+/// без этого программа честно назвала бы файл повреждённым.
+/// </summary>
+static void Anonymize(string source, string target)
+{
+    const string fakeName = "Tarnished";
+    const ulong fakeSteamId = 76561190000000001UL;
+    const int nameField = 32;
+
+    var data = File.ReadAllBytes(source);
+    var slots = SaveParser.ReadSlots(data);
+
+    var names = slots.Select(slot => slot.Name).Where(n => n.Length > 0).Distinct().ToList();
+    var ids = slots
+        .Select(slot => SaveParser.ReadSlotDetails(data, slot.Index)?.SteamId)
+        .Where(id => ulong.TryParse(id, out _))
+        .Select(id => ulong.Parse(id!))
+        .Distinct()
+        .ToList();
+
+    var replacement = new byte[nameField];
+    System.Text.Encoding.Unicode.GetBytes(fakeName).CopyTo(replacement, 0);
+
+    var renamed = 0;
+    var skipped = 0;
+    foreach (var name in names)
+    {
+        var needle = System.Text.Encoding.Unicode.GetBytes(name);
+        if (needle.Length > nameField) { skipped++; continue; }
+
+        var from = 0;
+        while (true)
+        {
+            var at = data.AsSpan(from).IndexOf(needle);
+            if (at < 0) break;
+            at += from;
+            from = at + needle.Length;
+
+            var tail = data.AsSpan(at + needle.Length, nameField - needle.Length);
+            if (tail.ContainsAnyExcept((byte)0)) { skipped++; continue; }
+
+            replacement.CopyTo(data, at);
+            renamed++;
+        }
+    }
+
+    var fakeBytes = BitConverter.GetBytes(fakeSteamId);
+    var reids = 0;
+    foreach (var id in ids)
+    {
+        var needle = BitConverter.GetBytes(id);
+        var from = 0;
+        while (true)
+        {
+            var at = data.AsSpan(from).IndexOf(needle);
+            if (at < 0) break;
+            at += from;
+            fakeBytes.CopyTo(data, at);
+            from = at + needle.Length;
+            reids++;
+        }
+    }
+
+    for (var i = 0; i < Sl2File.SlotCount; i++)
+    {
+        var hash = System.Security.Cryptography.MD5.HashData(
+            data.AsSpan((int)Sl2File.SlotDataOffset(i), Sl2File.SlotDataSize));
+        hash.CopyTo(data, (int)Sl2File.SlotChecksumOffset(i));
+    }
+
+    var profileHash = System.Security.Cryptography.MD5.HashData(
+        data.AsSpan((int)(Sl2File.ProfileOffset + Sl2File.ChecksumSize), Sl2File.ProfileDataSize));
+    profileHash.CopyTo(data, (int)Sl2File.ProfileOffset);
+
+    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+    File.WriteAllBytes(target, data);
+
+    // Проверка результата, а не вера в него.
+    var leftNames = names.Where(n =>
+        data.AsSpan().IndexOf(System.Text.Encoding.Unicode.GetBytes(n)) >= 0).ToList();
+    var leftIds = ids.Where(id => data.AsSpan().IndexOf(BitConverter.GetBytes(id)) >= 0).ToList();
+    var integrity = Sl2File.CheckIntegrity(data);
+    var after = SaveParser.ReadSlots(data).Select(slot => slot.Name).Distinct();
+
+    // Главное - то, что программа покажет на экране: персонаж, которого она
+    // выбирает сама, и номер аккаунта. Короткие имена других слотов вроде
+    // "42" по байтам не отличить от случайных данных, и заменять их вслепую
+    // значило бы портить сейв; на экран они не попадают.
+    var shown = SaveContextReader.Read(data);
+
+    Console.WriteLine($"имён персонажей: {names.Count}, замен: {renamed}, пропущено совпадений: {skipped}");
+    Console.WriteLine($"SteamID: {ids.Count}, замен: {reids}, осталось: {leftIds.Count}");
+    Console.WriteLine($"имена в слотах после замены: {string.Join(", ", after)}");
+    Console.WriteLine($"на экране: {shown?.Character.Name}, аккаунт {shown?.SteamId}");
+    Console.WriteLine($"целостность: {(integrity.AllOk ? "все 11 сумм сошлись" : integrity.Problem)}");
+    Console.WriteLine(shown?.Character.Name == fakeName && leftIds.Count == 0 && integrity.AllOk
+        ? "АНОНИМИЗАЦИЯ ПРОЙДЕНА: на экране вымышленные имя и номер"
+        : "АНОНИМИЗАЦИЯ НЕ ПРОЙДЕНА");
+    _ = leftNames;
+}
+
+/// <summary>
+/// Снимки для карточки на сайте: главное окно, другая игра, обновление и
+/// проверка целостности. Всё на вымышленных данных из фикстуры - настоящий
+/// SteamID и имя персонажа на публичной странице ни к чему.
+///
+/// Раскладка фикстуры: er\&lt;SteamID&gt;\ER0000.sl2 (после анонимизации),
+/// ds3\&lt;id&gt;\DS30000.sl2, notes-ru.md и notes-en.md - заметки выпуска.
+/// </summary>
+static void ShootShowcase(string fixture, string outputDir, bool english)
+{
+    var suffix = english ? "en" : "ru";
+    var width = 1180;
+    // Выше обычного: карточка выбора игры сдвинула колонку вниз, и при 840
+    // кнопка "Сделать снимок" уходила под край.
+    var height = 980;
+
+    // Папка снимков видна на снимке экрана целиком. Внутри фикстуры путь
+    // выдаёт имя пользователя Windows и служебные папки, поэтому для съёмки
+    // можно указать нейтральный корень - так путь выглядит как у игрока.
+    var snapshotsRoot = Environment.GetEnvironmentVariable("ERDTREE_KEEPER_SHOWCASE_SNAPSHOTS")
+                        ?? Path.Combine(fixture, "snapshots");
+    var localFolder = Path.Combine(snapshotsRoot, english ? "Snapshots" : "Снимки");
+
+    // Список снимков собирается из копий фикстуры под именами из справочника
+    // игры: так названия мест настоящие и на нужном языке.
+    string Boss(string ru, string en)
+    {
+        var point = MapPoints.Bosses.FirstOrDefault(b => b.Name.Contains(en, StringComparison.OrdinalIgnoreCase));
+        if (point is null) return english ? en : ru;
+        return english || string.IsNullOrWhiteSpace(point.Ru) ? point.Name : point.Ru;
+    }
+
+    // Имя собирается так же, как кнопками в окне: метка DLC первой, место,
+    // затем суффикс пары - и всё через санитизацию имени файла.
+    static string Named(string place, string suffix, bool dlc)
+    {
+        var name = dlc ? SnapshotNaming.EnsureDlcTag("") : "";
+        name = SnapshotNaming.Append(name, place);
+        return SnapshotNaming.ToFileName(SnapshotNaming.WithPairSuffix(name, suffix));
+    }
+
+    var erSave = Directory.GetFiles(Path.Combine(fixture, "er"), "ER0000.sl2", SearchOption.AllDirectories)[0];
+    var erSnapshots = localFolder;
+    if (Directory.Exists(erSnapshots)) Directory.Delete(erSnapshots, recursive: true);
+    Directory.CreateDirectory(erSnapshots);
+
+    var erNames = new[]
+    {
+        (Named(Boss("Маргит", "Margit"), SnapshotNaming.BeforeSuffix, dlc: false), -9),
+        (Named(Boss("Реннала", "Rennala"), SnapshotNaming.AfterSuffix, dlc: false), -6),
+        (Named(Boss("Радан", "Radahn"), SnapshotNaming.BeforeSuffix, dlc: false), -4),
+        (Named(Boss("Мессмер", "Messmer"), SnapshotNaming.BeforeSuffix, dlc: true), -1),
+    };
+
+    foreach (var (name, days) in erNames)
+    {
+        var path = Path.Combine(erSnapshots, name);
+        File.Copy(erSave, path, overwrite: true);
+        File.SetLastWriteTime(path, DateTime.Now.AddDays(days).AddHours(-3));
+    }
+
+    // ─── 1. Главное окно Elden Ring ─────────────────────────────────────
+    var main = NewModel();
+    main.DismissOnboardingCommand.Execute(null);
+    main.SelectedGame = main.Games.First(g => g.Id == GameProfiles.EldenRingId);
+    main.SavesRoot = Path.Combine(fixture, "er");
+    main.SnapshotFolder = erSnapshots;
+    main.RefreshAccounts();
+    main.AnalyzeCommand.Execute(null);
+    for (var i = 0; i < 40 && main.SaveContext is null; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(100); }
+
+    main.AutoSnapshotEnabled = true;
+    main.SnapshotName = "";
+    main.AddLocationCommand.Execute(null);
+    for (var i = 0; i < 20 && main.SnapshotName.Length == 0; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(50); }
+    main.AddBeforeCommand.Execute(null);
+    main.RefreshSnapshots();
+    main.Log.Entries.Clear();
+
+    Console.WriteLine($"   персонаж: {main.SaveContext?.Character.Name}, место: {main.SaveContext?.Location?.Display}");
+    Console.WriteLine($"   имя снимка: {main.SnapshotName}, снимков в списке: {main.Snapshots.Count}");
+    Capture(new MainWindow { DataContext = main, Width = width, Height = height },
+        $"keeper-main-{suffix}.png", outputDir);
+
+    // ─── 2. Dark Souls III ──────────────────────────────────────────────
+    var ds3Snapshots = Path.Combine(localFolder, "Dark Souls III");
+    if (Directory.Exists(ds3Snapshots)) Directory.Delete(ds3Snapshots, recursive: true);
+    Directory.CreateDirectory(ds3Snapshots);
+
+    var ds3Save = Directory.GetFiles(Path.Combine(fixture, "ds3"), "DS30000.sl2", SearchOption.AllDirectories)[0];
+    var ds3Names = new[]
+    {
+        (english ? "Nameless King_before" : "Безымянный король_before", -5),
+        (english ? "Twin Princes_after" : "Принцы-близнецы_after", -2),
+        (SnapshotNaming.AppendTime(english ? "Ringed City" : "Город за стеной", DateTime.Now.AddHours(-20)), 0),
+    };
+
+    foreach (var (name, days) in ds3Names)
+    {
+        var path = Path.Combine(ds3Snapshots, name + ".sl2");
+        File.Copy(ds3Save, path, overwrite: true);
+        File.SetLastWriteTime(path, DateTime.Now.AddDays(days).AddHours(-1));
+    }
+
+    var ds3 = NewModel();
+    ds3.DismissOnboardingCommand.Execute(null);
+    ds3.SelectedGame = ds3.Games.First(g => g.Id == "dark-souls-3");
+    ds3.SavesRoot = Path.Combine(fixture, "ds3");
+    ds3.SnapshotFolder = ds3Snapshots;
+    ds3.RefreshAccounts();
+    ds3.SnapshotName = english ? "Soul of Cinder" : "Душа пепла";
+    ds3.AddTimeCommand.Execute(null);
+    ds3.RefreshSnapshots();
+    ds3.Log.Entries.Clear();
+
+    Console.WriteLine($"   игра: {ds3.Game.Name}, файлов: {ds3.SaveFiles.Count}, снимков: {ds3.Snapshots.Count}");
+    Capture(new MainWindow { DataContext = ds3, Width = width, Height = height },
+        $"keeper-games-{suffix}.png", outputDir);
+
+    // ─── 3. Обновление: настоящий переход 1.5.1 -> 1.5.2 ───────────────
+    var notes = File.ReadAllText(Path.Combine(fixture, $"notes-{suffix}.md"));
+    var release = new ReleaseInfo(
+        "v1.5.2",
+        "1.5.2",
+        AppUpdate.ReadableNotes(notes),
+        "https://github.com/valiDol42/erdtree-keeper/releases/tag/v1.5.2",
+        [],
+        DateTimeOffset.Now);
+
+    var updates = NewModel();
+    Capture(UpdateDialog.CreatePreview(updates, release, "1.5.1"),
+        $"keeper-update-{suffix}.png", outputDir);
+
+    // ─── 4. Проверка целостности - настоящий отчёт по фикстуре ──────────
+    var check = SaveIntegrity.Inspect(GameProfiles.EldenRing, File.ReadAllBytes(erSave));
+    Capture(Dialogs.CreateReportWindow(Loc.Get("dlg.integrityTitle"),
+            SaveIntegrity.BuildReport(GameProfiles.EldenRing, check, "ER0000.sl2")),
+        $"keeper-integrity-{suffix}.png", outputDir);
+
+    // Настройки стенда общие: возвращаем Elden Ring, чтобы следующий
+    // обычный запуск начинался с того же, с чего всегда.
+    main.SelectedGame = main.Games.First(g => g.Id == GameProfiles.EldenRingId);
+}
 
 /// <summary>
 /// Проверка установки: обновление обязано заменить свои файлы и не тронуть
@@ -294,6 +557,14 @@ static async Task Bench(string savePath)
 
 static void Shoot(string outputDir, int width, int height)
 {
+    // Снимки для карточки на сайте - отдельный набор со своей фикстурой.
+    if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_SHOWCASE") is { Length: > 0 } showcase)
+    {
+        ShootShowcase(showcase, outputDir,
+            Environment.GetEnvironmentVariable("ERDTREE_KEEPER_UI_LANG") == "en");
+        return;
+    }
+
     // Проверка перехвата: исключение в UI-потоке не должно ронять процесс,
     // а должно оставить запись в журнале аварий.
     if (Environment.GetEnvironmentVariable("ERDTREE_KEEPER_CRASHTEST") == "1")
@@ -401,9 +672,19 @@ static void Shoot(string outputDir, int width, int height)
     // Выбор должен пережить перезапуск: следующая модель читает его из файла
     // настроек, а не из того, что осталось в памяти.
     var chosen = switched.IsEnglish;
+
+    // Как при настоящем запуске: до чтения настроек язык берётся у системы и
+    // может отличаться от выбранного. Строки, созданные до чтения настроек,
+    // обязаны перейти на выбранный язык - иначе список источников оставался
+    // на языке системы.
+    Loc.Current.Language = chosen ? Lang.Ru : Lang.En;
     var reopened = new MainViewModel();
+    var expectedSource = Loc.Get(chosen ? Lang.En : Lang.Ru, "list.manual");
     Console.WriteLine($"   после перезапуска: {(reopened.IsEnglish ? "En" : "Ru")}"
-                      + $" (выбирали {(chosen ? "En" : "Ru")})");
+                      + $" (выбирали {(chosen ? "En" : "Ru")}), список: {reopened.SnapshotSources[0]}");
+    Console.WriteLine(reopened.SnapshotSources[0] == expectedSource && reopened.IsEnglish == chosen
+        ? "   ПРОВЕРКА ЯЗЫКА ПРОЙДЕНА: список источников на выбранном языке"
+        : "   ПРОВЕРКА ЯЗЫКА НЕ ПРОЙДЕНА: список на языке системы");
 
     // Разведка: что за место в каждом сейве. Нужна, чтобы для проверки ниже
     // выбрать два файла с РАЗНОЙ локацией - иначе проверка ничего не докажет.

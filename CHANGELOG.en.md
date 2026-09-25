@@ -14,6 +14,30 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.5.3
+
+### Fixed
+
+- **The update window showed the wrong text.** Under "What changed" people read how to verify
+  the file and what the SmartScreen dialog means: that template was all the GitHub release
+  carried. A release now opens with its section of the changelog, and the program shows only
+  that - without the hashes, asterisks and backticks GitHub uses for markup, and without the
+  line breaks made for the width of an editor.
+
+- **After a restart the English interface showed the "Snapshots" list in Russian.** Strings
+  created before the settings were read took the system language rather than the chosen
+  one. On a Russian Windows, someone who picked English saw that list in Russian until they
+  switched the language again.
+
+### Verified
+
+- 165 automated checks, the new ones covering that only the changes reach the update window,
+  that markup is stripped and that paragraphs are joined.
+- The screenshot harness checks a start where the system language differs from the chosen
+  one, and it caught the source list bug before players did.
+
+---
+
 ## 1.5.2
 
 ### Fixed

@@ -20,7 +20,22 @@ namespace ErdtreeKeeper.Views;
 /// </summary>
 public static class UpdateDialog
 {
-    public static Window Create(MainViewModel model, Action shutdown)
+    public static Window Create(MainViewModel model, Action shutdown) =>
+        Create(model, shutdown, preview: null, installedVersion: null);
+
+    /// <summary>
+    /// Окно, открытое сразу на найденном выпуске, - без запроса в сеть.
+    ///
+    /// Нужно инструменту снимков экрана: показать, как выглядит предложение
+    /// обновиться, можно только имея выпуск новее установленного, а ждать
+    /// его ради картинки на сайте незачем. Выпуск передаётся настоящий, со
+    /// своими заметками, - меняется только то, какая версия считается
+    /// установленной.
+    /// </summary>
+    public static Window CreatePreview(MainViewModel model, ReleaseInfo release, string installedVersion) =>
+        Create(model, () => { }, release, installedVersion);
+
+    private static Window Create(MainViewModel model, Action shutdown, ReleaseInfo? preview, string? installedVersion)
     {
         var content = new StackPanel { Spacing = 14 };
         var close = Dialogs.Action(Loc.Get("app.close"));
@@ -31,7 +46,11 @@ public static class UpdateDialog
             Children =
             {
                 Dialogs.Heading(Loc.Get("upd.title")),
-                new TextBlock { Text = Loc.Get("upd.current", AppInfo.FullVersion), Classes = { "secondary" } },
+                new TextBlock
+                {
+                    Text = Loc.Get("upd.current", installedVersion ?? AppInfo.FullVersion),
+                    Classes = { "secondary" },
+                },
                 content,
                 Dialogs.Buttons(close),
             },
@@ -40,7 +59,8 @@ public static class UpdateDialog
         close.Click += (_, _) => window.Close();
 
         var state = new DialogState(model, window, content, shutdown);
-        state.ShowStart();
+        if (preview is null) state.ShowStart();
+        else state.ShowRelease(preview);
 
         return window;
     }
@@ -165,6 +185,13 @@ public static class UpdateDialog
                     ShowMessage(status.Message, "DangerBrush");
                     break;
             }
+        }
+
+        /// <summary>Сразу показать выпуск - вход для снимков экрана.</summary>
+        public void ShowRelease(ReleaseInfo release)
+        {
+            window.Closed += (_, _) => _cancel.Cancel();
+            ShowAvailable(release);
         }
 
         private void ShowAvailable(ReleaseInfo release)

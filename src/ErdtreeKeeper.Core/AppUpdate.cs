@@ -129,10 +129,93 @@ public static class AppUpdate
         return new ReleaseInfo(
             tag,
             NormalizeVersion(tag),
-            dto.Body ?? "",
+            ReadableNotes(dto.Body),
             IsTrustedUrl(dto.HtmlUrl) ? dto.HtmlUrl! : ReleasesPageUrl,
             assets,
             dto.PublishedAt);
+    }
+
+    /// <summary>
+    /// Граница в тексте выпуска: выше - что изменилось, ниже - как проверить
+    /// и установить файл. GitHub комментарий не показывает, а программа по нему
+    /// отрезает то, что человеку в окне обновления не нужно.
+    /// </summary>
+    public const string NotesEndMarker = "<!-- keeper:end-of-changes -->";
+
+    /// <summary>
+    /// Текст выпуска так, как его стоит показать в окне программы.
+    ///
+    /// На GitHub он написан в Markdown, а окно показывает простой текст, и
+    /// без обработки человек видел бы решётки, звёздочки и обратные кавычки.
+    /// Разметка снимается, смысл остаётся: заголовок становится строкой,
+    /// пункт списка - строкой с точкой.
+    /// </summary>
+    public static string ReadableNotes(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "";
+
+        var text = body.Replace("\r\n", "\n");
+        var cut = text.IndexOf(NotesEndMarker, StringComparison.Ordinal);
+        if (cut >= 0) text = text[..cut];
+
+        var lines = new List<string>();
+        var headings = new HashSet<int>();
+        var inCode = false;
+
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.TrimEnd();
+
+            // Блоки кода в заметках - команды проверки; в окне они не нужны.
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal))
+            {
+                inCode = !inCode;
+                continue;
+            }
+
+            if (inCode) continue;
+
+            var trimmed = line.TrimStart();
+            var startsBlock = false;
+
+            if (trimmed.StartsWith('#'))
+            {
+                line = trimmed.TrimStart('#').Trim();
+                startsBlock = true;
+            }
+            else if (trimmed.StartsWith("- ", StringComparison.Ordinal))
+            {
+                line = "·  " + trimmed[2..];
+                startsBlock = true;
+            }
+            else
+            {
+                line = trimmed;
+            }
+
+            line = line.Replace("**", "").Replace("`", "");
+
+            // Пустые строки подряд схлопываются в одну.
+            if (line.Length == 0)
+            {
+                if (lines.Count > 0 && lines[^1].Length > 0) lines.Add("");
+                continue;
+            }
+
+            // Журнал изменений перенесён вручную по ширине редактора. В окне
+            // своя ширина, и такие переносы давали бы рваные строки, поэтому
+            // продолжение абзаца или пункта приклеивается к началу.
+            if (!startsBlock && lines.Count > 0 && lines[^1].Length > 0 && !headings.Contains(lines.Count - 1))
+            {
+                lines[^1] += " " + line;
+                continue;
+            }
+
+            lines.Add(line);
+            if (trimmed.StartsWith('#')) headings.Add(lines.Count - 1);
+        }
+
+        return string.Join('\n', lines).Trim();
     }
 
     /// <summary>Версия из тега: "v1.4.1" и "1.4.1" - одно и то же.</summary>

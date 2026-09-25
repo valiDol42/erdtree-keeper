@@ -121,6 +121,82 @@ public class AppUpdateTests
     public void Nonsense_lines_are_skipped(string line) =>
         Assert.Empty(AppUpdate.ParseChecksums(line));
 
+    /// <summary>
+    /// В окне обновления показывается то, что изменилось, а не инструкция по
+    /// проверке файла, которая идёт в выпуске следом. Раньше показывалось всё
+    /// подряд, и под заголовком «Что изменилось» человек читал про SmartScreen.
+    /// </summary>
+    [Fact]
+    public void Only_the_changes_reach_the_window()
+    {
+        var body = string.Join("\n",
+            "### Исправлено",
+            "",
+            "- **Dark Souls Remastered** не находила сохранения.",
+            "- Сообщение перечисляет `все` места.",
+            "",
+            AppUpdate.NotesEndMarker,
+            "",
+            "## Как проверить, что файл настоящий",
+            "```powershell",
+            "Get-FileHash .\\ErdtreeKeeper.exe",
+            "```");
+
+        var notes = AppUpdate.ReadableNotes(body);
+
+        Assert.StartsWith("Исправлено", notes);
+        Assert.Contains("·  Dark Souls Remastered не находила сохранения.", notes);
+        Assert.Contains("·  Сообщение перечисляет все места.", notes);
+        Assert.DoesNotContain("Как проверить", notes);
+        Assert.DoesNotContain("Get-FileHash", notes);
+        Assert.DoesNotContain("**", notes);
+        Assert.DoesNotContain("`", notes);
+        Assert.DoesNotContain("#", notes);
+    }
+
+    /// <summary>Выпуски, опубликованные до появления границы, показываются целиком, но без разметки.</summary>
+    [Fact]
+    public void Older_releases_without_the_marker_still_read_cleanly()
+    {
+        var notes = AppUpdate.ReadableNotes("## Установка\n\nРаспакуйте **архив**.\n\n```bash\ngh attestation verify\n```");
+
+        Assert.Equal("Установка\n\nРаспакуйте архив.", notes);
+    }
+
+    /// <summary>
+    /// Журнал перенесён вручную по ширине редактора, а в окне своя ширина:
+    /// строки одного абзаца и одного пункта должны стать одной строкой, иначе
+    /// текст ложится лесенкой.
+    /// </summary>
+    [Fact]
+    public void Hard_wrapped_paragraphs_become_one_line()
+    {
+        var notes = AppUpdate.ReadableNotes(string.Join("\n",
+            "### Исправлено",
+            "",
+            "- Первая строка пункта,",
+            "  его продолжение.",
+            "- Второй пункт.",
+            "",
+            "Абзац в две",
+            "строки."));
+
+        Assert.Equal(string.Join("\n",
+            "Исправлено",
+            "",
+            "·  Первая строка пункта, его продолжение.",
+            "·  Второй пункт.",
+            "",
+            "Абзац в две строки."), notes);
+    }
+
+    [Fact]
+    public void Empty_notes_stay_empty()
+    {
+        Assert.Equal("", AppUpdate.ReadableNotes(null));
+        Assert.Equal("", AppUpdate.ReadableNotes("   "));
+    }
+
     /// <summary>Адрес проверки записан в коде и никем не задаётся - это часть обещания.</summary>
     [Fact]
     public void The_check_address_is_fixed()

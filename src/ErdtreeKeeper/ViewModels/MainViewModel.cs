@@ -68,6 +68,15 @@ public sealed class MainViewModel : ViewModelBase
         Loc.Current.Language = _settings.Language;
         _strings = Loc.Snapshot();
 
+        // Инициализаторы полей срабатывают раньше этой строки, то есть на языке,
+        // который был до чтения настроек, - на русской Windows это русский. Для
+        // того, кто выбрал английский, список "Снимки / Автосохранения" так и
+        // оставался русским после перезапуска. Строки, созданные до выбора
+        // языка, пересобираются здесь.
+        RefreshSourceNames();
+        _status = Loc.Get("status.ready");
+        _freshnessText = Loc.Get("fresh.none");
+
         Log = new ActivityLog();
         _snapshotService = new SnapshotService(Log);
         Updates = new UpdateService(Log);
