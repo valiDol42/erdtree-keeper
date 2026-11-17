@@ -7,6 +7,8 @@
 источники переходов старше двух недель не отдаются никому, включая владельца репозитория.
 Что не сохранено вовремя - потеряно навсегда.
 
+Актуальные CSV находятся в ветке [stats-data](https://github.com/valiDol42/erdtree-keeper/tree/stats-data/stats).
+
 ## Файлы
 
 | Файл | Что внутри | Период |
@@ -101,6 +103,8 @@ Collected by [scripts/collect-stats.py](../scripts/collect-stats.py), run once a
 The point, in one line: **GitHub keeps traffic data for 14 days only.** Views, clones and
 referrers older than two weeks are not available to anyone, the repository owner included.
 Whatever is not saved in time is gone for good.
+
+The current CSVs are in the [stats-data branch](https://github.com/valiDol42/erdtree-keeper/tree/stats-data/stats).
 
 | File | What is inside | Period |
 | --- | --- | --- |

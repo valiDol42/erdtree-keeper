@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 REPO = os.environ.get("REPO", "valiDol42/erdtree-keeper")
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATS = os.path.join(ROOT, "stats")
+STATS = os.environ.get("STATS_DIR", os.path.join(ROOT, "stats"))
 TODAY = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
@@ -214,7 +214,7 @@ def fetch(url, attempts=3):
 
 def guide_ids():
     """Номера руководств из stats/steam-guides.ids. Всё после # - комментарий."""
-    path = os.path.join(STATS, "steam-guides.ids")
+    path = os.path.join(ROOT, "stats", "steam-guides.ids")
     if not os.path.exists(path):
         return []
 

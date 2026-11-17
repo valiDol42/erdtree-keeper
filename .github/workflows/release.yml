@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Версия, например v1.0.0'
+        description: 'Существующий тег, например v1.0.0'
         required: true
 
 permissions:
@@ -16,27 +16,35 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
       - name: Версия из тега
         id: version
         shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') {
-            $env:GITHUB_REF -replace 'refs/tags/', ''
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $env:GITHUB_REF_NAME
           } else {
-            '${{ inputs.version }}'
+            $env:REQUESTED_VERSION
           }
-          $number = $tag.TrimStart('v')
-          "tag=$tag"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "number=$number" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($tag -cnotmatch '^v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$') {
+            throw 'Ожидается релизный тег вида v1.2.3'
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "number=$($tag.Substring(1))" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ format('refs/tags/{0}', steps.version.outputs.tag) }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Тесты
         run: dotnet test --configuration Release
@@ -85,7 +93,7 @@ jobs:
       # пользователь не получает даже архива с контрольными суммами.
       - name: Attestation происхождения сборки
         if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
             dist/*.zip
@@ -120,7 +128,7 @@ jobs:
           Get-Content dist/NOTES.md -TotalCount 30
 
       - name: Опубликовать релиз
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Erdtree Keeper ${{ steps.version.outputs.tag }}

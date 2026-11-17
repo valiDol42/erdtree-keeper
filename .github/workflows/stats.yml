@@ -20,32 +20,41 @@ concurrency:
 
 jobs:
   collect:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: stats-data
+          path: stats-data
+          persist-credentials: false
 
       - name: Собрать статистику
         env:
-          # Встроенному токену Actions traffic закрыт - на нём 403 при любых
-          # permissions. STATS_TOKEN - personal access token с правом
-          # Administration (read); без него соберутся только скачивания.
-          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
+          # У встроенного токена нет доступа к traffic. Для него нужен
+          # STATS_TOKEN с Administration (read) только на этот репозиторий.
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || github.token }}
           REPO: ${{ github.repository }}
+          STATS_DIR: ${{ github.workspace }}/stats-data/stats
         run: python3 scripts/collect-stats.py
 
-      - name: Сохранить, если что-то изменилось
+      - name: Сохранить в stats-data
+        working-directory: stats-data
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -z "$(git status --porcelain stats)" ]; then
+          git add -- stats/*.csv
+          if git diff --staged --quiet; then
             echo "Изменений нет - коммит не нужен."
             exit 0
           fi
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add stats
-
-          # [skip ci] - иначе ежедневный коммит гонял бы сборку и тесты
-          # впустую: код от этого не меняется.
           git commit -m "Статистика за $(date -u +%F) [skip ci]"
-          git push
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin HEAD:refs/heads/stats-data
