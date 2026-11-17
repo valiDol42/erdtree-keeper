@@ -5,9 +5,9 @@
 A save file keeper for Windows: it copies your saves, shows where your character is
 standing, and can put any copy back into the game.
 
-It knows **Elden Ring**, **Nightreign**, the whole **Dark Souls** series, **Sekiro** and
-**Armored Core VI**, and any other Steam game can be added by hand - all it needs is the
-folder with that game's saves.
+It knows **Elden Ring**, **Nightreign**, the whole **Dark Souls** series, **Sekiro**,
+**Armored Core VI**, **Hollow Knight**, and **Phantom Blade Zero**. Other Steam games
+can be added by hand.
 
 Part of [eldenring.krut.top](https://eldenring.krut.top) - an Elden Ring map and progress
 tracker.
@@ -117,9 +117,14 @@ instructions are below.
 ## Features
 
 **Several games.** The list at the top of the window holds Elden Ring, Nightreign, Dark Souls
-(Prepare to Die, Remastered, II, III), Sekiro and Armored Core VI. Each game keeps its own
-snapshot folder and its own choice of account and file, so copies of different games never
-share a list and a bulk delete cannot reach across.
+(Prepare to Die, Remastered, II, III), Sekiro, Armored Core VI, Hollow Knight, and
+Phantom Blade Zero. Each game keeps its own snapshot folder and choice of account and file.
+
+For Hollow Knight, Keeper finds slots `user1.dat`–`user4.dat` in
+`%USERPROFILE%\AppData\LocalLow\Team Cherry\Hollow Knight`. For Phantom Blade Zero, it looks
+for `PBZSaveGame.sav` in `ProjectPBZ\Saved\SaveGames\Steam\<SteamID>` under the game's
+installation folder in all Steam libraries. Keeper verifies copies with SHA-256 for both
+games. The companion trackers read in-game progress.
 
 The "+ game" button adds any other Steam game. The window lists installed games that have a
 cloud save folder - read from Steam's own files on disk - or the folder can be picked by

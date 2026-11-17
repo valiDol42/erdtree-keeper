@@ -92,7 +92,7 @@ public static class GameSaves
     private static SaveAccount? Describe(GameProfile game, string folder)
     {
         var files = SafeEnumerateFiles(folder)
-            .Where(f => game.LooksLikeSave(System.IO.Path.GetFileName(f)))
+            .Where(f => game.LooksLikeSourceSave(System.IO.Path.GetFileName(f)))
             .ToList();
         if (files.Count == 0) return null;
 
@@ -127,7 +127,7 @@ public static class GameSaves
         foreach (var path in SafeEnumerateFiles(accountPath))
         {
             var name = System.IO.Path.GetFileName(path);
-            if (!game.LooksLikeSave(name)) continue;
+            if (!game.LooksLikeSourceSave(name)) continue;
 
             try
             {

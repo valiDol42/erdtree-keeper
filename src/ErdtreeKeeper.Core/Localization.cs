@@ -925,6 +925,9 @@ public sealed class Loc : INotifyPropertyChanged
 
         // ─── Новые строки состояния ─────────────────────────────────────
         ["status.noSaveFolderFor"] = ("Сохранения {0} не найдены: {1}", "No {0} saves found: {1}"),
+        ["source.steamInstallMissing"] = (
+            "Папка установки игры в библиотеках Steam не найдена.",
+            "The game's installation folder was not found in the Steam libraries."),
         ["status.noReader"] = (
             "Содержимое сейвов {0} программа не разбирает",
             "The program does not parse the contents of {0} saves"),

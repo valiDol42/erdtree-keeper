@@ -33,6 +33,12 @@ public enum SaveRootKind
 
     /// <summary>Папка, указанная человеком.</summary>
     Custom,
+
+    /// <summary>Подпапка AppData\LocalLow в профиле Windows.</summary>
+    LocalLow,
+
+    /// <summary>Подпапка игры, установленной через Steam.</summary>
+    SteamInstall,
 }
 
 /// <summary>
@@ -43,20 +49,25 @@ public enum SaveRootKind
 /// остальными играми FromSoftware. Одного зашитого пути тут мало - программа
 /// проверяет все известные и берёт тот, который нашёлся на этой машине.
 /// </summary>
-public sealed record SaveRoot(SaveRootKind Kind, string Path)
+public sealed record SaveRoot(SaveRootKind Kind, string Path, string? SteamAppId = null)
 {
     /// <summary>
     /// Путь на этом компьютере. Вычисляется, а не хранится: "Документы" могут
     /// быть перенесены на другой диск, и системная папка знает об этом, а
     /// зашитый путь - нет.
     /// </summary>
-    public string Resolve() => Kind switch
+    public IEnumerable<string> Resolve(string? steamRoot = null) => Kind switch
     {
-        SaveRootKind.AppData => System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Path),
-        SaveRootKind.Documents => System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path),
-        _ => Path,
+        SaveRootKind.AppData => [System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Path)],
+        SaveRootKind.LocalLow => [ResolveIn(WindowsProfiles.Own)!],
+        SaveRootKind.Documents => [System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path)],
+        SaveRootKind.SteamInstall => SteamAppId is null
+            ? []
+            : SteamLibrary.FindInstallFolders(SteamAppId, steamRoot)
+                .Select(folder => System.IO.Path.Combine(folder, Path)),
+        _ => [Path],
     };
 
     /// <summary>
@@ -70,6 +81,7 @@ public sealed record SaveRoot(SaveRootKind Kind, string Path)
     public string? ResolveIn(string profileFolder) => Kind switch
     {
         SaveRootKind.AppData => System.IO.Path.Combine(profileFolder, "AppData", "Roaming", Path),
+        SaveRootKind.LocalLow => System.IO.Path.Combine(profileFolder, "AppData", "LocalLow", Path),
         SaveRootKind.Documents => System.IO.Path.Combine(profileFolder, "Documents", Path),
         _ => null,
     };
@@ -104,6 +116,15 @@ public sealed record GameProfile(
     /// </summary>
     public IReadOnlyList<SaveRoot> AlternateRoots { get; init; } = [];
 
+    public string? SteamAppId { get; init; }
+
+    /// <summary>Имена живых сейвов, когда одного расширения для поиска мало.</summary>
+    public IReadOnlyList<string> SourceFileNames { get; init; } = [];
+
+    public bool LooksLikeSourceSave(string fileName) => SourceFileNames.Count == 0
+        ? LooksLikeSave(fileName)
+        : SourceFileNames.Contains(fileName, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Все места, где стоит искать сохранения, в порядке проверки: сначала
     /// свой профиль Windows, затем остальные профили на этом компьютере.
@@ -132,14 +153,12 @@ public sealed record GameProfile(
     /// не нашлись: полный список с чужими профилями занял бы десяток строк и
     /// ничего не объяснил.
     /// </summary>
-    public IEnumerable<string> ResolveOwnRoots()
-    {
-        foreach (var place in Places()) yield return place.Resolve();
-    }
+    public IEnumerable<string> ResolveOwnRoots(string? steamRoot = null) =>
+        Places().SelectMany(place => place.Resolve(steamRoot));
 
     private List<SaveRoot> Places()
     {
-        var places = new List<SaveRoot>(AlternateRoots.Count + 1) { new(RootKind, RootPath) };
+        var places = new List<SaveRoot>(AlternateRoots.Count + 1) { new(RootKind, RootPath, SteamAppId) };
         places.AddRange(AlternateRoots);
         return places;
     }
@@ -167,7 +186,7 @@ public sealed record GameProfile(
             }
         }
 
-        return first ?? RootPath;
+        return first ?? (RootKind == SaveRootKind.SteamInstall ? "" : RootPath);
     }
 
     /// <summary>Похож ли файл на сохранение этой игры.</summary>
@@ -205,9 +224,8 @@ public sealed record GameProfile(
 /// <summary>
 /// Встроенный список игр.
 ///
-/// Все они хранят сейвы одинаково: папка игры, внутри - папка на аккаунт Steam,
-/// внутри - сам файл. Поэтому одна и та же работа подходит им всем, и отличия
-/// сведены к таблице ниже.
+/// Сейвы могут лежать прямо в папке игры или в подпапках отдельных аккаунтов.
+/// Пути и имена файлов задаются отдельно для каждой игры.
 /// </summary>
 public static class GameProfiles
 {
@@ -282,6 +300,20 @@ public static class GameProfiles
             ["armoredcore6", "start_protected_game"], SaveLayout.Bnd4)
         {
             AlternateRoots = [new SaveRoot(SaveRootKind.Documents, Path.Combine("NBGI", "ArmoredCore6"))],
+        },
+
+        new("hollow-knight", "Hollow Knight", SaveRootKind.LocalLow, Path.Combine("Team Cherry", "Hollow Knight"),
+            [".dat"], "user1.dat", ["hollow_knight"], SaveLayout.Opaque)
+        {
+            SourceFileNames = ["user1.dat", "user2.dat", "user3.dat", "user4.dat"],
+        },
+
+        new("phantom-blade-zero", "Phantom Blade Zero", SaveRootKind.SteamInstall,
+            Path.Combine("ProjectPBZ", "Saved", "SaveGames", "Steam"),
+            [".sav"], "PBZSaveGame.sav", ["PBZ"], SaveLayout.Opaque)
+        {
+            SteamAppId = "4115450",
+            SourceFileNames = ["PBZSaveGame.sav"],
         },
     ];
 
