@@ -289,13 +289,40 @@ public class GameProfileTests : IDisposable
     [Fact]
     public void Any_known_game_folder_is_rejected()
     {
-        foreach (var game in GameProfiles.BuiltIn)
+        foreach (var root in GameProfiles.BuiltIn.SelectMany(game => game.ResolveRoots()))
         {
-            Assert.True(GameSaves.IsInsideGameFolder(game.ResolveRoot()), game.Id);
-            Assert.True(GameSaves.IsInsideGameFolder(Path.Combine(game.ResolveRoot(), "снимки")), game.Id);
+            Assert.True(GameSaves.IsInsideGameFolder(root), root);
+            Assert.True(GameSaves.IsInsideGameFolder(Path.Combine(root, "снимки")), root);
         }
 
         Assert.False(GameSaves.IsInsideGameFolder(_folder));
+    }
+
+    [Fact]
+    public void Phantom_blade_zero_finds_its_save_in_a_secondary_steam_library()
+    {
+        var steamapps = Path.Combine(_folder, "steamapps");
+        Directory.CreateDirectory(steamapps);
+        var library = Path.Combine(_folder, "Secondary library");
+        var escapedPath = library.Replace("\\", "\\\\");
+        File.WriteAllText(Path.Combine(steamapps, "libraryfolders.vdf"),
+            $$""" "libraryfolders" { "1" { "path" "{{escapedPath}}" } } """);
+
+        var install = Path.Combine(library, "steamapps", "common", "PBZ");
+        var saves = Path.Combine(install, "ProjectPBZ", "Saved", "SaveGames", "Steam");
+        var account = Path.Combine(saves, "76561190000000001");
+        Directory.CreateDirectory(account);
+        File.WriteAllText(Path.Combine(library, "steamapps", "appmanifest_4115450.acf"),
+            """ "AppState" { "appid" "4115450" "installdir" "PBZ" } """);
+        File.WriteAllBytes(Path.Combine(account, "PBZSaveGame.sav"), [1]);
+        File.WriteAllBytes(Path.Combine(account, "unrelated.sav"), [2]);
+
+        var game = GameProfiles.BuiltIn.Single(g => g.Id == "phantom-blade-zero");
+        var root = Assert.Single(game.ResolveOwnRoots(_folder));
+        Assert.Equal(saves, root);
+        var found = Assert.Single(GameSaves.FindAccounts(game, root));
+        Assert.Equal(account, found.Path);
+        Assert.Equal("PBZSaveGame.sav", Assert.Single(GameSaves.FindSaveFiles(game, found.Path)).Name);
     }
 
     /// <summary>Игра без известного имени процесса не притворяется запущенной.</summary>

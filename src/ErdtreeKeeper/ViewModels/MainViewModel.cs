@@ -829,7 +829,7 @@ public sealed class MainViewModel : ViewModelBase
         var root = SavesRoot;
 
         Accounts.Clear();
-        foreach (var account in GameSaves.FindAccounts(_game, root))
+        foreach (var account in GameSaves.FindAccounts(_game, SavesRootOverride))
         {
             _settings.Values.Aliases.TryGetValue(account.SteamId, out var alias);
             Accounts.Add(new AccountItem(account, alias));
@@ -853,8 +853,13 @@ public sealed class MainViewModel : ViewModelBase
 
             // Про чужие профили - одной строкой: их пути человеку ничего не
             // говорят, а знать, что там тоже смотрели, полезно.
-            var others = SavesRootOverride is null ? WindowsProfiles.Others().Count : 0;
+            var others = SavesRootOverride is null
+                && _game.RootKind is SaveRootKind.AppData or SaveRootKind.LocalLow or SaveRootKind.Documents
+                ? WindowsProfiles.Others().Count
+                : 0;
             if (others > 0) searched += "  ·  " + Loc.Get("source.alsoProfiles", others);
+            if (searched.Length == 0 && _game.RootKind == SaveRootKind.SteamInstall)
+                searched = Loc.Get("source.steamInstallMissing");
 
             SayKey("status.noSaveFolderFor", "WarnBrush", _game.Name, searched);
             Log.Warn(Loc.Get("log.noSavesFor", _game.Name), searched);

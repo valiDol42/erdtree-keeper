@@ -5,8 +5,8 @@
 Хранитель файлов сохранения для Windows: делает копии сейвов, показывает, где стоит
 персонаж, и умеет вернуть любую копию обратно в игру.
 
-Знает **Elden Ring**, **Nightreign**, всю серию **Dark Souls**, **Sekiro** и **Armored Core VI**,
-а любую другую игру Steam можно добавить самому - нужна только папка с её сохранениями.
+Знает **Elden Ring**, **Nightreign**, всю серию **Dark Souls**, **Sekiro**, **Armored Core VI**,
+**Hollow Knight** и **Phantom Blade Zero**. Другие игры Steam можно добавить вручную.
 
 Часть проекта [eldenring.krut.top](https://eldenring.krut.top) - карты и трекера прогресса
 Elden Ring.
@@ -115,9 +115,14 @@ SmartScreen «Windows защитила ваш компьютер». Это не 
 ## Возможности
 
 **Несколько игр.** В списке вверху окна - Elden Ring, Nightreign, Dark Souls (Prepare to Die,
-Remastered, II, III), Sekiro и Armored Core VI. У каждой игры своя папка снимков, свой выбор
-аккаунта и файла: копии разных игр не смешиваются в одном списке, и удаление по кнопке не
-заденет чужие.
+Remastered, II, III), Sekiro, Armored Core VI, Hollow Knight и Phantom Blade Zero. У каждой
+игры своя папка снимков, свой выбор аккаунта и файла: копии разных игр не смешиваются.
+
+Для Hollow Knight Keeper находит слоты `user1.dat`–`user4.dat` в папке
+`%USERPROFILE%\AppData\LocalLow\Team Cherry\Hollow Knight`. Для Phantom Blade Zero он
+ищет `PBZSaveGame.sav` в `ProjectPBZ\Saved\SaveGames\Steam\<SteamID>` внутри папки
+игры во всех библиотеках Steam. Для обеих игр Keeper сверяет копии по SHA-256.
+Чтение игрового прогресса остаётся в трекерах.
 
 Кнопка «+ игра» добавляет любую другую игру Steam. Окно покажет установленные игры, у
 которых есть папка облачных сохранений - список читается из файлов самого Steam на диске, -

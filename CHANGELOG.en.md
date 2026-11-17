@@ -14,6 +14,17 @@ the bottom of the window and in the "About" dialog.
 
 ---
 
+## 1.6.0
+
+### Added
+
+- Built-in profiles for Hollow Knight and Phantom Blade Zero: automatic save discovery,
+  snapshots, autosave, and restore with a safety backup.
+
+### Updated
+
+- The build uses .NET 10.0.15 with security fixes.
+
 ## 1.5.5
 
 ### Fixed

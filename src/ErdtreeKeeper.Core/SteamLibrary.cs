@@ -112,6 +112,28 @@ public static class SteamLibrary
             .ToList();
     }
 
+    /// <summary>Каталоги установки конкретной игры во всех библиотеках Steam.</summary>
+    public static IEnumerable<string> FindInstallFolders(string appId, string? steamRoot = null)
+    {
+        if (appId.Length == 0 || !appId.All(char.IsAsciiDigit)) yield break;
+
+        foreach (var library in Libraries(steamRoot))
+        {
+            if (!Path.IsPathFullyQualified(library)) continue;
+
+            var steamapps = Path.Combine(library, "steamapps");
+            var game = ReadManifest(TryReadText(Path.Combine(steamapps, $"appmanifest_{appId}.acf")));
+            if (game is null || game.AppId != appId) continue;
+
+            var name = game.InstallDir;
+            if (string.IsNullOrWhiteSpace(name) || name is "." or ".."
+                || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) continue;
+
+            var folder = Path.Combine(steamapps, "common", name);
+            if (Directory.Exists(folder)) yield return folder;
+        }
+    }
+
     /// <summary>
     /// Служебные записи Steam, которые игрой не являются и сохранений не
     /// имеют. Без них в списке первыми оказываются "SteamVR" и наборы

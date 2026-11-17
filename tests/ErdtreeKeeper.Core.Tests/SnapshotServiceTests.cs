@@ -62,6 +62,37 @@ public class SnapshotServiceTests : IDisposable
     }
 
     // ─── Восстановление ─────────────────────────────────────────────────
+    [Theory]
+    [InlineData("hollow-knight", "user2.dat", "shared.dat", "Before boss.dat")]
+    [InlineData("phantom-blade-zero", "PBZSaveGame.sav", "unrelated.sav", "Before boss.sav")]
+    public async Task Only_live_slots_are_offered_and_named_snapshots_can_be_restored(
+        string gameId, string liveName, string unrelatedName, string snapshotName)
+    {
+        var profile = GameProfiles.BuiltIn.Single(g => g.Id == gameId);
+        var live = Write(Path.Combine("game", liveName), [1, 2, 3]);
+        Write(Path.Combine("game", unrelatedName), [4]);
+        var folder = Path.GetDirectoryName(live)!;
+        var snapshots = Path.Combine(_root, "snapshots");
+        var ct = TestContext.Current.CancellationToken;
+
+        var account = Assert.Single(GameSaves.FindAccounts(profile, folder));
+        var source = Assert.Single(GameSaves.FindSaveFiles(profile, account.Path));
+        Assert.Equal(live, source.Path);
+
+        var copy = await _service.CreateAsync(source.Path, snapshots, snapshotName, false, ct, profile);
+        Assert.True(copy.Success, copy.Message);
+        var snapshot = Assert.Single(_service.List(snapshots, profile));
+        Assert.Equal(snapshotName, snapshot.Name);
+        Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(snapshot.Path, ct));
+
+        await File.WriteAllBytesAsync(live, new byte[] { 5, 6 }, ct);
+        var restore = await _service.RestoreAsync(snapshot.Path, live, ct, profile);
+        Assert.True(restore.Success, restore.Message);
+        Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(live, ct));
+        var backup = Assert.Single(Directory.GetFiles(Path.Combine(folder, SnapshotService.RestoreBackupFolder)));
+        Assert.Equal(new byte[] { 5, 6 }, await File.ReadAllBytesAsync(backup, ct));
+    }
+
 
     [Fact]
     public async Task Backs_the_current_save_up_before_overwriting_it()
